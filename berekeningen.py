@@ -233,3 +233,18 @@ def bereken_storypoints(netto_uren, dev, ops, func, uren_per_storypoint):
             verdeling[volgorde[i % len(volgorde)]] -= 1
 
     return {"totaal": totaal, **verdeling}
+
+
+def test_correctie_bij_overschot(self):
+    resultaat = bereken_storypoints(
+        netto_uren=40,
+        dev=45,
+        ops=35,
+        func=20,
+        uren_per_storypoint=4,
+    )
+
+    self.assertEqual(
+        resultaat,
+        {"totaal": 10, "dev": 4, "ops": 4, "func": 2}
+    )

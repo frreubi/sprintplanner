@@ -94,5 +94,20 @@ class TestStorypoints(unittest.TestCase):
         )
 
 
+    def test_correctie_bij_overschot(self):
+        resultaat = bereken_storypoints(
+            netto_uren=40,
+            dev=45,
+            ops=35,
+            func=20,
+            uren_per_storypoint=4,
+        )
+
+        self.assertEqual(
+            resultaat,
+            {"totaal": 10, "dev": 4, "ops": 4, "func": 2}
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
