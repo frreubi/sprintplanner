@@ -203,21 +203,33 @@ def bereken_storypoints(netto_uren, dev, ops, func, uren_per_storypoint):
     )
 
     verdeling = {}
-    resten = {}
 
     for rol, percentage in percentages.items():
         exact = Decimal(totaal) * percentage / totaal_percentage
-        verdeling[rol] = int(exact.to_integral_value(rounding=ROUND_FLOOR))
-        resten[rol] = exact - verdeling[rol]
+        verdeling[rol] = int(
+            exact.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        )
 
-    over = totaal - sum(verdeling.values())
+    verschil = totaal - sum(verdeling.values())
 
-    volgorde = sorted(
-        percentages,
-        key=lambda rol: (-resten[rol], percentages[rol])
-    )
+    actieve_rollen = {
+        rol: percentage
+        for rol, percentage in percentages.items()
+        if percentage > 0
+    }
 
-    for rol in volgorde[:over]:
-        verdeling[rol] += 1
+    if verschil > 0:
+        volgorde = sorted(actieve_rollen, key=actieve_rollen.get)
+        for i in range(verschil):
+            verdeling[volgorde[i % len(volgorde)]] += 1
+
+    elif verschil < 0:
+        volgorde = sorted(
+            actieve_rollen,
+            key=actieve_rollen.get,
+            reverse=True
+        )
+        for i in range(-verschil):
+            verdeling[volgorde[i % len(volgorde)]] -= 1
 
     return {"totaal": totaal, **verdeling}
