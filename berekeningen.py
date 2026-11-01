@@ -1,0 +1,223 @@
+from decimal import Decimal, ROUND_HALF_UP, ROUND_FLOOR
+from datetime import date, timedelta
+from toewijzingen import zoek_toewijzing
+
+
+def bereken_roosteruren(medewerkers, startdatum, einddatum, toewijzingen):
+    if einddatum < startdatum:
+        raise ValueError("De einddatum ligt voor de startdatum.")
+
+    resultaten = []
+    for medewerker in medewerkers:
+        totaal_uren = 0
+        datum = startdatum
+        while datum <= einddatum:
+            toewijzing = zoek_toewijzing(medewerker, datum, toewijzingen)
+            totaal_uren += toewijzing.rooster.uren_op(datum)
+            datum += timedelta(days=1)
+        resultaten.append([
+            medewerker.userid,
+            medewerker.naam,
+            totaal_uren,
+        ])
+    return resultaten
+
+
+def bereken_afwezigheidsuren(code, roosteruren):
+    code = code.strip().upper()
+
+    if code in ("V", "B", "C", "Z"):
+        return roosteruren
+
+    if code.endswith(("V", "B", "C", "Z")):
+        return int(code[:-1])
+
+    raise ValueError(f"Ongeldige afwezigheidscode: {code}")
+
+
+def bereken_netto_uren(roosteruren, code):
+    if code is None:
+        return roosteruren
+    afwezigheidsuren = bereken_afwezigheidsuren(code, roosteruren)
+    return roosteruren - afwezigheidsuren
+
+
+def bereken_netto_uren_per_periode(rooster, startdatum, einddatum, afwezigheid):
+    if einddatum < startdatum:
+        raise ValueError("De einddatum ligt voor de startdatum.")
+
+    totaal_uren = 0
+    datum = startdatum
+
+    while datum <= einddatum:
+        roosteruren = rooster.uren_op(datum)
+        code = afwezigheid.get(datum)
+        totaal_uren += bereken_netto_uren(roosteruren, code)
+        datum += timedelta(days=1)
+
+    return totaal_uren
+
+
+def bereken_netto_uren_medewerkers(
+    medewerkers, startdatum, einddatum, afwezigheden,
+    toewijzingen, agile_instellingen
+):
+    if einddatum < startdatum:
+        raise ValueError("De einddatum ligt voor de startdatum.")
+
+    feestdagen = set()
+    for jaar in range(startdatum.year, einddatum.year + 1):
+        feestdagen.update(bereken_feestdagen(jaar))
+
+    resultaten = []
+
+    for medewerker in medewerkers:
+        afwezigheid = afwezigheden.get(medewerker.userid, {})
+        netto_uren = 0
+        werkzaam = False
+        datum = startdatum
+
+        while datum <= einddatum:
+            geldige = [
+                t for t in toewijzingen
+                if t.medewerker is medewerker and t.geldt_op(datum)
+            ]
+
+            if geldige:
+                toewijzing = zoek_toewijzing(
+                    medewerker, datum, toewijzingen
+                )
+                werkzaam = True
+                roosteruren = toewijzing.rooster.uren_op(datum)
+
+                if datum not in feestdagen:
+                    code = afwezigheid.get(datum)
+                    beschikbare_uren = bereken_netto_uren(
+                        roosteruren, code
+                    )
+
+                    overhead = bereken_agile_overhead_per_dag(
+                        medewerker, datum, startdatum,
+                        toewijzingen, agile_instellingen,
+                        beschikbare_uren
+                    )
+
+                    netto_uren += beschikbare_uren - overhead
+
+            datum += timedelta(days=1)
+
+        if werkzaam:
+            resultaten.append([
+                medewerker.userid,
+                medewerker.naam,
+                netto_uren,
+            ])
+
+    return resultaten
+
+def bereken_feestdagen(jaar):
+    a = jaar % 19
+    b = jaar // 100
+    c = jaar % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    maand = (h + l - 7 * m + 114) // 31
+    dag = (h + l - 7 * m + 114) % 31 + 1
+    pasen = date(jaar, maand, dag)
+
+    return {
+        date(jaar, 1, 1),
+        pasen,
+        pasen + timedelta(days=1),
+        date(jaar, 4, 27),
+        date(jaar, 5, 5),
+        pasen + timedelta(days=39),
+        pasen + timedelta(days=49),
+        pasen + timedelta(days=50),
+        date(jaar, 12, 25),
+        date(jaar, 12, 26),
+    }
+
+def bereken_agile_overhead_per_dag(medewerker, datum, startdatum, toewijzingen, agile_instellingen, beschikbare_uren):
+    dag = ("ma", "di", "wo", "do", "vr", "za", "zo")[datum.weekday()]
+
+    toewijzing = zoek_toewijzing(medewerker, datum, toewijzingen)
+
+    if not toewijzing:
+        return 0
+
+    roosteruren = toewijzing.rooster.uren_op(datum)
+    dag_overhead = 0
+
+    sprintwissel = (
+        datum == startdatum
+        and roosteruren > 0
+    )
+
+    for instelling in agile_instellingen:
+        if instelling["type"] == "Sprintwissel":
+            if sprintwissel:
+                dag_overhead += instelling["duur"]
+
+        elif dag in instelling["dagen"]:
+            if instelling["type"] == "DagStart" and sprintwissel:
+                continue
+
+            dag_overhead += instelling["duur"]
+
+    dag_overhead = min(dag_overhead, beschikbare_uren)
+
+    return dag_overhead
+
+
+def bereken_storypoints(netto_uren, dev, ops, func, uren_per_storypoint):
+    if uren_per_storypoint <= 0:
+        raise ValueError("Uren per storypoint moet groter zijn dan nul.")
+
+    percentages = {
+        "dev": Decimal(str(dev)),
+        "ops": Decimal(str(ops)),
+        "func": Decimal(str(func)),
+    }
+
+    if any(p < 0 for p in percentages.values()):
+        raise ValueError("Rolpercentages mogen niet negatief zijn.")
+
+    totaal_percentage = sum(percentages.values())
+
+    if totaal_percentage == 0:
+        return {"totaal": 0, "dev": 0, "ops": 0, "func": 0}
+
+    sprinturen = Decimal(str(netto_uren)) * totaal_percentage / 100
+
+    totaal = int(
+        (sprinturen / Decimal(str(uren_per_storypoint)))
+        .quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    )
+
+    verdeling = {}
+    resten = {}
+
+    for rol, percentage in percentages.items():
+        exact = Decimal(totaal) * percentage / totaal_percentage
+        verdeling[rol] = int(exact.to_integral_value(rounding=ROUND_FLOOR))
+        resten[rol] = exact - verdeling[rol]
+
+    over = totaal - sum(verdeling.values())
+
+    volgorde = sorted(
+        percentages,
+        key=lambda rol: (-resten[rol], percentages[rol])
+    )
+
+    for rol in volgorde[:over]:
+        verdeling[rol] += 1
+
+    return {"totaal": totaal, **verdeling}

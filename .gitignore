@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Tijdelijke bestanden
+*.tmp
+*.bak
+*~
+
+# Gegenereerde bestanden
+sprints.json
+.~lock.*#
+backups/
+logs/
+*.log
+sprintinfo_fout.txt
+python_pad.txt

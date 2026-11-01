@@ -1,0 +1,10 @@
+Sprintplanner - huidige ordening
+
+Productiecode en bestanden die bestaande scripts op vaste paden verwachten, staan voorlopig in de hoofdmap.
+tests/       geautomatiseerde tests
+logs/        test- en diagnostische logbestanden
+backups/     reservekopieën en oude versies
+documentatie/ gereserveerd voor ontwerpdocumenten
+
+Open macromap.cmd opent de LibreOffice Python-macromap. De macro zelf wordt niet verplaatst.
+Er is bewust geen productiecode verplaatst: scripts bevatten nog vaste paden en moeten eerst gecontroleerd worden.
