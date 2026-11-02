@@ -1,7 +1,6 @@
 from datetime import date
 
 class Medewerker:
-    ROLLEN = ("ops", "dev", "pm", "sm", "po", "func")
 
     def __init__(
         self,
@@ -10,9 +9,7 @@ class Medewerker:
         tussenvoegsel,
         achternaam,
         rol,
-        dev=0,
-        ops=0,
-        func=0,
+        werkstromen,    
         beheerder=False,
         access_analist=False,
         einddatum=None,
@@ -29,39 +26,30 @@ class Medewerker:
         self.tussenvoegsel = tussenvoegsel
         self.achternaam = achternaam
         self.rol = rol
-        self.dev = dev
-        self.ops = ops
-        self.func = func
+        self.werkstromen = werkstromen
         self.beheerder = beheerder
         self.access_analist = access_analist
         self.einddatum = einddatum
 
     @property
-    def dev(self):
-        return self._dev
+    def werkstromen(self):
+        return self._werkstromen
 
-    @dev.setter
-    def dev(self, waarde):
-        self._controleer_percentage(waarde, "DEV")
-        self._dev = waarde
+    @werkstromen.setter
+    def werkstromen(self, waarden):
+        if not isinstance(waarden, dict):
+            raise ValueError("Werkstromen moeten als dictionary worden aangeleverd.")
 
-    @property
-    def ops(self):
-        return self._ops
+        for naam, percentage in waarden.items():
+            if not isinstance(naam, str) or not naam.strip():
+                raise ValueError("Iedere werkstroom moet een geldige naam hebben.")
 
-    @ops.setter
-    def ops(self, waarde):
-        self._controleer_percentage(waarde, "OPS")
-        self._ops = waarde
+            self._controleer_percentage(percentage, naam.upper())
 
-    @property
-    def func(self):
-        return self._func
-
-    @func.setter
-    def func(self, waarde):
-        self._controleer_percentage(waarde, "FUNC")
-        self._func = waarde
+        self._werkstromen = {
+            naam.strip().lower(): percentage
+            for naam, percentage in waarden.items()
+        }
 
     @staticmethod
     def _controleer_percentage(waarde, naam):
@@ -102,10 +90,8 @@ class Medewerker:
 
     @rol.setter
     def rol(self, waarde):
-        if not isinstance(waarde, str) or waarde.strip().lower() not in self.ROLLEN:
-            raise ValueError(
-                f"Rol moet een van deze waarden zijn: {', '.join(self.ROLLEN)}."
-            )
+        if not isinstance(waarde, str) or not waarde.strip():
+            raise ValueError("Rol mag niet leeg zijn.")
         self._rol = waarde.strip().lower()
 
     @achternaam.setter
@@ -134,10 +120,14 @@ class Medewerker:
 
 def controleer_rolpercentages(medewerkers):
     waarschuwingen = []
+
     for medewerker in medewerkers:
-        totaal = medewerker.dev + medewerker.ops + medewerker.func
+        totaal = sum(medewerker.werkstromen.values())
+
         if round(totaal, 2) != 100:
             waarschuwingen.append(
-                f"{medewerker.naam}: rolpercentages tellen op tot {totaal:g}% in plaats van 100%."
+                f"{medewerker.naam}: werkstroompercentages "
+                f"tellen op tot {totaal:g}% in plaats van 100%."
             )
+
     return waarschuwingen
