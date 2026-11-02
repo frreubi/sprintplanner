@@ -177,7 +177,7 @@ def bereken_agile_overhead_per_dag(medewerker, datum, startdatum, toewijzingen, 
     return dag_overhead
 
 
-def bereken_storypoints(netto_uren, dev, ops, func, uren_per_storypoint):
+def bereken_storypoints(standaard_werkstroom, netto_uren, dev, ops, func, uren_per_storypoint):
     if uren_per_storypoint <= 0:
         raise ValueError("Uren per storypoint moet groter zijn dan nul.")
 
@@ -186,6 +186,12 @@ def bereken_storypoints(netto_uren, dev, ops, func, uren_per_storypoint):
         "ops": Decimal(str(ops)),
         "func": Decimal(str(func)),
     }
+
+    if standaard_werkstroom is not None and standaard_werkstroom not in percentages:
+        raise ValueError("Onbekende standaard werkstroom.")
+    
+    if standaard_werkstroom is not None and percentages[standaard_werkstroom] == 0:
+        raise ValueError("De standaardwerkstroom moet een percentage groter dan nul hebben.")
 
     if any(p < 0 for p in percentages.values()):
         raise ValueError("Rolpercentages mogen niet negatief zijn.")
@@ -204,47 +210,38 @@ def bereken_storypoints(netto_uren, dev, ops, func, uren_per_storypoint):
 
     verdeling = {}
 
-    for rol, percentage in percentages.items():
+    for werkstroom, percentage in percentages.items():
         exact = Decimal(totaal) * percentage / totaal_percentage
-        verdeling[rol] = int(
+        verdeling[werkstroom] = int(
             exact.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         )
 
-    verschil = totaal - sum(verdeling.values())
+        verschil = totaal - sum(verdeling.values())
 
     actieve_rollen = {
-        rol: percentage
-        for rol, percentage in percentages.items()
+        werkstroom: percentage
+        for werkstroom, percentage in percentages.items()
         if percentage > 0
     }
 
     if verschil > 0:
-        volgorde = sorted(actieve_rollen, key=actieve_rollen.get)
-        for i in range(verschil):
-            verdeling[volgorde[i % len(volgorde)]] += 1
-
+        if standaard_werkstroom in actieve_rollen:
+            verdeling[standaard_werkstroom] += verschil
+        else:
+            grootste = max(actieve_rollen, key=actieve_rollen.get)
+            verdeling[grootste] += verschil
     elif verschil < 0:
-        volgorde = sorted(
-            actieve_rollen,
-            key=actieve_rollen.get,
-            reverse=True
-        )
-        for i in range(-verschil):
-            verdeling[volgorde[i % len(volgorde)]] -= 1
+        kandidaten = {
+            werkstroom: percentage
+            for werkstroom, percentage in actieve_rollen.items()
+            if werkstroom != standaard_werkstroom
+        }
+
+        if kandidaten:
+            grootste = max(kandidaten, key=kandidaten.get)
+        else:
+            grootste = max(actieve_rollen, key=actieve_rollen.get)
+
+        verdeling[grootste] += verschil
 
     return {"totaal": totaal, **verdeling}
-
-
-def test_correctie_bij_overschot(self):
-    resultaat = bereken_storypoints(
-        netto_uren=40,
-        dev=45,
-        ops=35,
-        func=20,
-        uren_per_storypoint=4,
-    )
-
-    self.assertEqual(
-        resultaat,
-        {"totaal": 10, "dev": 4, "ops": 4, "func": 2}
-    )
