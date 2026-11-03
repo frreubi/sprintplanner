@@ -177,14 +177,13 @@ def bereken_agile_overhead_per_dag(medewerker, datum, startdatum, toewijzingen, 
     return dag_overhead
 
 
-def bereken_storypoints(standaard_werkstroom, netto_uren, dev, ops, func, uren_per_storypoint):
+def bereken_storypoints(standaard_werkstroom, netto_uren, werkstromen, uren_per_storypoint):
     if uren_per_storypoint <= 0:
         raise ValueError("Uren per storypoint moet groter zijn dan nul.")
 
     percentages = {
-        "dev": Decimal(str(dev)),
-        "ops": Decimal(str(ops)),
-        "func": Decimal(str(func)),
+        naam.strip().lower(): Decimal(str(percentage))
+        for naam, percentage in werkstromen.items()
     }
 
     if standaard_werkstroom is not None and standaard_werkstroom not in percentages:
@@ -199,7 +198,7 @@ def bereken_storypoints(standaard_werkstroom, netto_uren, dev, ops, func, uren_p
     totaal_percentage = sum(percentages.values())
 
     if totaal_percentage == 0:
-        return {"totaal": 0, "dev": 0, "ops": 0, "func": 0}
+        return {"totaal": 0, **dict.fromkeys(percentages, 0)}
 
     sprinturen = Decimal(str(netto_uren)) * totaal_percentage / 100
 
@@ -216,7 +215,7 @@ def bereken_storypoints(standaard_werkstroom, netto_uren, dev, ops, func, uren_p
             exact.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         )
 
-        verschil = totaal - sum(verdeling.values())
+    verschil = totaal - sum(verdeling.values())
 
     actieve_rollen = {
         werkstroom: percentage
@@ -245,3 +244,39 @@ def bereken_storypoints(standaard_werkstroom, netto_uren, dev, ops, func, uren_p
         verdeling[grootste] += verschil
 
     return {"totaal": totaal, **verdeling}
+
+
+def bereken_sprintresultaten(medewerkers, startdatum, einddatum, afwezigheden, toewijzingen, agile_instellingen, uren_per_storypoint,):
+    netto_resultaten = bereken_netto_uren_medewerkers(medewerkers, startdatum, einddatum, afwezigheden, toewijzingen, agile_instellingen,)
+    medewerkers_op_id = {
+        medewerker.userid: medewerker
+        for medewerker in medewerkers
+    }
+
+    resultaten = []
+    for userid, naam, netto_uren in netto_resultaten:
+        medewerker = medewerkers_op_id[userid]    
+        standaard_werkstroom = (
+            medewerker.rol.lower()
+            if medewerker.rol.lower() in medewerker.werkstromen
+            else None
+        )
+        storypoints = bereken_storypoints(standaard_werkstroom,
+            netto_uren,
+            medewerker.werkstromen,
+            uren_per_storypoint,
+        )    
+        resultaten.append({
+            "userid": userid,
+            "naam": naam,
+            "uren": netto_uren,
+            "storypoints": storypoints["totaal"],
+            "werkstromen": medewerker.werkstromen,
+            "storypoints_per_werkstroom": {
+                werkstroom: punten
+                for werkstroom, punten in storypoints.items()
+                if werkstroom != "totaal"
+            },
+        }) 
+
+    return resultaten

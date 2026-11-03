@@ -8,9 +8,7 @@ class TestStorypoints(unittest.TestCase):
             bereken_storypoints(
                 standaard_werkstroom="ops",
                 netto_uren=40,
-                dev=100,
-                ops=0,
-                func=0,
+                werkstromen={"dev": 100, "ops": 0, "func": 0},
                 uren_per_storypoint=4,
             )
 
@@ -19,9 +17,7 @@ class TestStorypoints(unittest.TestCase):
         resultaat = bereken_storypoints(
             standaard_werkstroom="dev",
             netto_uren=40,
-            dev=25,
-            ops=75,
-            func=0,
+            werkstromen={"dev": 25, "ops": 75, "func": 0},
             uren_per_storypoint=4,
         )
 
@@ -35,9 +31,7 @@ class TestStorypoints(unittest.TestCase):
         resultaat = bereken_storypoints(
             standaard_werkstroom="dev",
             netto_uren=40,
-            dev=60,
-            ops=0,
-            func=0,
+            werkstromen={"dev": 60, "ops": 0, "func": 0},
             uren_per_storypoint=4,
         )
 
@@ -51,9 +45,7 @@ class TestStorypoints(unittest.TestCase):
         resultaat = bereken_storypoints(
             standaard_werkstroom=None,
             netto_uren=40,
-            dev=0,
-            ops=0,
-            func=0,
+            werkstromen={"dev": 0, "ops": 0, "func": 0},
             uren_per_storypoint=4,
         )
 
@@ -67,9 +59,7 @@ class TestStorypoints(unittest.TestCase):
         resultaat = bereken_storypoints(
             standaard_werkstroom=None,
             netto_uren=40,
-            dev=50,
-            ops=0,
-            func=0,
+            werkstromen={"dev": 50, "ops": 0, "func": 0},
             uren_per_storypoint=4,
         )
 
@@ -83,9 +73,7 @@ class TestStorypoints(unittest.TestCase):
         resultaat = bereken_storypoints(
             standaard_werkstroom="dev",
             netto_uren=10,
-            dev=100,
-            ops=0,
-            func=0,
+            werkstromen={"dev": 100, "ops": 0, "func": 0},
             uren_per_storypoint=4,
         )
 
@@ -99,9 +87,7 @@ class TestStorypoints(unittest.TestCase):
         resultaat = bereken_storypoints(
             standaard_werkstroom="dev",
             netto_uren=40,
-            dev=50,
-            ops=30,
-            func=20,
+            werkstromen={"dev": 50, "ops": 30, "func": 20},
             uren_per_storypoint=4,
         )
 
@@ -110,14 +96,30 @@ class TestStorypoints(unittest.TestCase):
             {"totaal": 10, "dev": 5, "ops": 3, "func": 2}
         )
 
+    def test_extra_werkstroom(self):
+        resultaat = bereken_storypoints(
+            standaard_werkstroom="dev",
+            netto_uren=40,
+            werkstromen={
+                "dev": 40,
+                "ops": 20,
+                "func": 20,
+                "access": 20,
+            },
+            uren_per_storypoint=4,
+        )
+
+        self.assertEqual(
+            resultaat,
+            {"totaal": 10, "dev": 4, "ops": 2, "func": 2, "access": 2}
+        )
+
 
     def test_correctie_naar_kleinste_werkstroom(self):
         resultaat = bereken_storypoints(
             standaard_werkstroom="func",
             netto_uren=44,
-            dev=40,
-            ops=40,
-            func=20,
+            werkstromen={"dev": 40, "ops": 40, "func": 20},
             uren_per_storypoint=4,
         )
 
@@ -131,9 +133,7 @@ class TestStorypoints(unittest.TestCase):
         resultaat = bereken_storypoints(
             standaard_werkstroom="dev",
             netto_uren=40,
-            dev=45,
-            ops=35,
-            func=20,
+            werkstromen={"dev": 45, "ops": 35, "func": 20},
             uren_per_storypoint=4,
         )
 

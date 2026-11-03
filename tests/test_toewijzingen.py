@@ -9,7 +9,8 @@ from toewijzingen import Roostertoewijzing
 
 rooster = Rooster("R001", 1, [[8, 8, 8, 8, 4]])
 medewerker = Medewerker(
-    "p002", "Petra", "", "Jansen", "ops"
+    "p002", "Petra", "", "Jansen", "ops",
+    {"dev": 0, "ops": 100, "func": 0}
 )
 toewijzing = Roostertoewijzing(
     medewerker, rooster, date(2026, 1, 5), date(2026, 1, 9)
@@ -40,7 +41,8 @@ except ValueError:
 
 def test_einddatum_medewerker():
     m = Medewerker(
-        "p002", "Petra", "", "Jansen", "ops",
+        "p002", "Petra", "", "Jansen", "ops", 
+        {"dev": 0, "ops": 100, "func": 0},
         einddatum=date(2030, 10, 15)
     )
     assert m.einddatum == date(2030, 10, 15)
@@ -53,6 +55,7 @@ def test_ongeldige_einddatum():
     try:
         Medewerker(
             "p002", "Petra", "", "Jansen", "ops",
+            {"dev": 0, "ops": 100, "func": 0},
             einddatum="15-10-2030"
         )
     except ValueError:
