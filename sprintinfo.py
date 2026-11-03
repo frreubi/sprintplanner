@@ -19,6 +19,13 @@ class SprintInfo:
         self.window.title("Sprintinfo")
         self.window.geometry("460x400")
         self.window.resizable(False, False)
+        stijl = ttk.Style()
+        stijl.configure(
+            "Treeview.Heading",
+            background="#D9E2F3",
+            foreground="#222222",
+            font=("Arial", 9, "bold"),
+        )
 
         self.tekst = tk.Label(
             self.window,
@@ -26,16 +33,32 @@ class SprintInfo:
         )
         self.tekst.pack(pady=12)
 
+        self.weergave = tk.StringVar(value="Storypoints")
+
+        ttk.Radiobutton(
+            self.window,
+            text="Storypoints",
+            variable=self.weergave,
+            value="Storypoints",
+            command=self.toon_sprint
+        ).pack()
+
+        ttk.Radiobutton(
+            self.window,
+            text="Uren",
+            variable=self.weergave,
+            value="Uren",
+            command=self.toon_sprint
+        ).pack()
+
         self.tabel = ttk.Treeview(
             self.window,
-            columns=("medewerker", "uren"),
+            columns=("medewerker",),
             show="headings",
             height=13,
         )
-        self.tabel.heading("medewerker", text="Medewerker")
-        self.tabel.heading("uren", text="Netto-uren")
+        self.tabel.heading("medewerker", text="Medewerker", anchor="w")
         self.tabel.column("medewerker", width=320)
-        self.tabel.column("uren", width=100, anchor="e")
         self.tabel.pack(padx=10, fill="x")
 
         knoppen = tk.Frame(self.window)
@@ -82,6 +105,18 @@ class SprintInfo:
             return
 
         sprint = self.sprints[self.index]
+        werkstromen = sorted({
+            werkstroom
+            for medewerker in sprint["netto_uren"]
+            for werkstroom, punten in medewerker["storypoints_per_werkstroom"].items()
+            if punten > 0
+        })
+        kolommen = ("medewerker", *werkstromen)
+        self.tabel["columns"] = kolommen
+        self.tabel.heading("medewerker", text="Medewerker", anchor="w")
+        for werkstroom in werkstromen:
+            self.tabel.heading(werkstroom, text=werkstroom.upper())
+            self.tabel.column(werkstroom, width=70, anchor="center")    
         self.tekst.config(
             text=(
                 f"{sprint['naam']}\n"
@@ -91,14 +126,14 @@ class SprintInfo:
         )
 
         for medewerker in sprint["netto_uren"]:
-            self.tabel.insert(
-                "",
-                "end",
-                values=(
-                    medewerker["naam"],
-                    f"{medewerker['uren']:g}",
+            waarden = [
+                medewerker["naam"],
+                *(
+                    medewerker["storypoints_per_werkstroom"].get(werkstroom, 0)
+                    for werkstroom in werkstromen
                 ),
-            )
+            ]
+            self.tabel.insert("", "end", values=waarden)
 
         self.vorige_knop.config(
             state="normal" if self.index > 0 else "disabled"
