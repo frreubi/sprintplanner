@@ -1,106 +1,120 @@
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import unittest
 from datetime import date
 from medewerker import Medewerker
 from rooster import Rooster
-from toewijzingen import Roostertoewijzing
+from toewijzingen import Roostertoewijzing, zoek_toewijzing
 
-rooster = Rooster("R001", 1, [[8, 8, 8, 8, 4]])
-medewerker = Medewerker(
-    "p002", "Petra", "", "Jansen", "ops",
-    {"dev": 0, "ops": 100, "func": 0}
-)
-toewijzing = Roostertoewijzing(
-    medewerker, rooster, date(2026, 1, 5), date(2026, 1, 9)
-)
 
-# De begin- en einddatum tellen mee.
-assert toewijzing.geldt_op(date(2026, 1, 5))
-assert toewijzing.geldt_op(date(2026, 1, 9))
+class TestRoostertoewijzing(unittest.TestCase):
 
-# Buiten de geldigheidsperiode geldt de toewijzing niet.
-assert not toewijzing.geldt_op(date(2026, 1, 4))
-assert not toewijzing.geldt_op(date(2026, 1, 10))
+    def setUp(self):
+        self.rooster = Rooster("R001", 1, [[8, 8, 8, 8, 4]])
+        self.medewerker = Medewerker(
+            "p002", "Petra", "", "Jansen", "ops",
+            {"dev": 0, "ops": 100, "func": 0}
+        )
 
-# Zonder einddatum blijft de toewijzing geldig.
-doorlopend = Roostertoewijzing(
-    medewerker, rooster, date(2026, 1, 5)
-)
-assert doorlopend.geldt_op(date(2026, 12, 31))
+    def test_geldigheid_datums(self):
+        toewijzing = Roostertoewijzing(
+            self.medewerker, self.rooster,
+            date(2026, 1, 5), date(2026, 1, 9)
+        )
 
-# Een einddatum vóór de begindatum moet worden afgewezen.
-try:
-    Roostertoewijzing(
-        medewerker, rooster, date(2026, 1, 9), date(2026, 1, 5)
-    )
-    raise AssertionError("Ongeldige datums zijn niet afgewezen")
-except ValueError:
-    pass
+        self.assertTrue(toewijzing.geldt_op(date(2026, 1, 5)))
+        self.assertTrue(toewijzing.geldt_op(date(2026, 1, 9)))
+        self.assertFalse(toewijzing.geldt_op(date(2026, 1, 4)))
+        self.assertFalse(toewijzing.geldt_op(date(2026, 1, 10)))
 
-def test_einddatum_medewerker():
-    m = Medewerker(
-        "p002", "Petra", "", "Jansen", "ops", 
-        {"dev": 0, "ops": 100, "func": 0},
-        einddatum=date(2030, 10, 15)
-    )
-    assert m.einddatum == date(2030, 10, 15)
+    def test_doorlopende_toewijzing(self):
+        toewijzing = Roostertoewijzing(
+            self.medewerker, self.rooster, date(2026, 1, 5)
+        )
+        self.assertTrue(toewijzing.geldt_op(date(2026, 12, 31)))
 
-def test_einddatum_onbekend():
-    m = Medewerker("p002", "Petra", "", "Jansen", "ops")
-    assert m.einddatum is None
+    def test_ongeldige_geldigheidsperiode(self):
+        with self.assertRaises(ValueError):
+            Roostertoewijzing(
+                self.medewerker, self.rooster,
+                date(2026, 1, 9), date(2026, 1, 5)
+            )
 
-def test_ongeldige_einddatum():
-    try:
-        Medewerker(
+
+class TestEinddatumMedewerker(unittest.TestCase):
+
+    def test_einddatum_medewerker(self):
+        medewerker = Medewerker(
             "p002", "Petra", "", "Jansen", "ops",
             {"dev": 0, "ops": 100, "func": 0},
-            einddatum="15-10-2030"
+            einddatum=date(2030, 10, 15)
         )
-    except ValueError:
-        return
-    raise AssertionError("Een tekstuele einddatum had afgewezen moeten worden")
+        self.assertEqual(medewerker.einddatum, date(2030, 10, 15))
 
-print("Alle tests voor Roostertoewijzing geslaagd.")
+    def test_einddatum_onbekend(self):
+        medewerker = Medewerker(
+            "p002", "Petra", "", "Jansen", "ops",
+            {"dev": 0, "ops": 100, "func": 0}
+        )
+        self.assertIsNone(medewerker.einddatum)
 
-from toewijzingen import zoek_toewijzing
+    def test_ongeldige_einddatum(self):
+        with self.assertRaises(ValueError):
+            Medewerker(
+                "p002", "Petra", "", "Jansen", "ops",
+                {"dev": 0, "ops": 100, "func": 0},
+                einddatum="15-10-2030"
+            )
 
-# Twee opeenvolgende roosters voor Petra.
-rooster_nieuw = Rooster("R002", 1, [[9, 9, 9, 4, 0]])
-eerste = Roostertoewijzing(
-    medewerker, rooster, date(2026, 1, 5), date(2026, 1, 9)
-)
-tweede = Roostertoewijzing(
-    medewerker, rooster_nieuw, date(2026, 1, 12)
-)
-toewijzingen = [eerste, tweede]
 
-# De juiste toewijzing wordt gevonden.
-assert zoek_toewijzing(
-    medewerker, date(2026, 1, 7), toewijzingen
-) is eerste
-assert zoek_toewijzing(
-    medewerker, date(2026, 1, 12), toewijzingen
-) is tweede
+class TestZoekToewijzing(unittest.TestCase):
 
-# Geen toewijzing op deze datum.
-try:
-    zoek_toewijzing(medewerker, date(2026, 1, 4), toewijzingen)
-    raise AssertionError("Ontbrekende toewijzing is niet afgewezen")
-except ValueError as fout:
-    assert "Geen roostertoewijzing" in str(fout)
+    def setUp(self):
+        medewerker = Medewerker(
+            "p002", "Petra", "", "Jansen", "ops",
+            {"dev": 0, "ops": 100, "func": 0}
+        )
+        rooster = Rooster("R001", 1, [[8, 8, 8, 8, 4]])
+        rooster_nieuw = Rooster("R002", 1, [[9, 9, 9, 4, 0]])
 
-# Twee gelijktijdig geldige toewijzingen moeten een fout geven.
-overlap = Roostertoewijzing(
-    medewerker, rooster_nieuw, date(2026, 1, 8)
-)
-try:
-    zoek_toewijzing(
-        medewerker, date(2026, 1, 8), [eerste, overlap]
-    )
-    raise AssertionError("Overlappende toewijzingen zijn niet afgewezen")
-except ValueError as fout:
-    assert "Meerdere roostertoewijzingen" in str(fout)
+        self.eerste = Roostertoewijzing(
+            medewerker, rooster, date(2026, 1, 5), date(2026, 1, 9)
+        )
+        self.tweede = Roostertoewijzing(
+            medewerker, rooster_nieuw, date(2026, 1, 12)
+        )
+        self.medewerker = medewerker
+        self.toewijzingen = [self.eerste, self.tweede]
 
-print("Alle tests voor zoek_toewijzing geslaagd.")
+    def test_juiste_toewijzing_gevonden(self):
+        self.assertIs(
+            zoek_toewijzing(
+                self.medewerker, date(2026, 1, 7), self.toewijzingen
+            ),
+            self.eerste,
+        )
+        self.assertIs(
+            zoek_toewijzing(
+                self.medewerker, date(2026, 1, 12), self.toewijzingen
+            ),
+            self.tweede,
+        )
+
+    def test_geen_toewijzing_gevonden(self):
+        with self.assertRaisesRegex(ValueError, "Geen roostertoewijzing"):
+            zoek_toewijzing(
+                self.medewerker, date(2026, 1, 4), self.toewijzingen
+            )
+
+    def test_meerdere_toewijzingen(self):
+        overlap = Roostertoewijzing(
+            self.medewerker, self.tweede.rooster, date(2026, 1, 8)
+        )
+
+        with self.assertRaisesRegex(ValueError, "Meerdere roostertoewijzingen"):
+            zoek_toewijzing(
+                self.medewerker, date(2026, 1, 8),
+                [self.eerste, overlap]
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

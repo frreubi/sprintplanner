@@ -105,10 +105,15 @@ class SprintInfo:
             return
 
         sprint = self.sprints[self.index]
+        veld = (
+            "storypoints_per_werkstroom"
+            if self.weergave.get() == "Storypoints"
+            else "uren_per_werkstroom"
+        )
         werkstromen = sorted({
             werkstroom
             for medewerker in sprint["netto_uren"]
-            for werkstroom, punten in medewerker["storypoints_per_werkstroom"].items()
+            for werkstroom, punten in medewerker[veld].items()
             if punten > 0
         })
         kolommen = ("medewerker", *werkstromen)
@@ -129,7 +134,7 @@ class SprintInfo:
             waarden = [
                 medewerker["naam"],
                 *(
-                    medewerker["storypoints_per_werkstroom"].get(werkstroom, 0)
+                    medewerker[veld].get(werkstroom, 0)
                     for werkstroom in werkstromen
                 ),
             ]

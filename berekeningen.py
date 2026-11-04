@@ -272,6 +272,13 @@ def bereken_sprintresultaten(medewerkers, startdatum, einddatum, afwezigheden, t
             "uren": netto_uren,
             "storypoints": storypoints["totaal"],
             "werkstromen": medewerker.werkstromen,
+            "uren_per_werkstroom": {
+                werkstroom: round(
+                    netto_uren * percentage / 100, 2
+                )
+                for werkstroom, percentage in medewerker.werkstromen.items()
+                if percentage > 0
+            },
             "storypoints_per_werkstroom": {
                 werkstroom: punten
                 for werkstroom, punten in storypoints.items()

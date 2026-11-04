@@ -188,7 +188,6 @@ class TestBerekenNettoUrenMedewerkers(unittest.TestCase):
             toewijzingen,
             agile_instellingen,
         )
-        print(resultaten)
 
         self.assertEqual(resultaten[0][2], 79.5)
         self.assertEqual(resultaten[1][2], 71.0)
