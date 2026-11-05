@@ -71,11 +71,13 @@ class SprintInfo:
         )
         self.vorige_knop.pack(side="left", padx=3)
 
-        tk.Button(
+        self.huidige_knop = tk.Button(
             knoppen,
             text="Huidige sprint",
-            command=lambda: self.wijzig_sprint(0)
-        ).pack(side="left", padx=3)
+            command=lambda: self.wijzig_sprint(0),
+            state="disabled",
+        )
+        self.huidige_knop.pack(side="left", padx=3)
 
         self.volgende_knop = tk.Button(
             knoppen,
@@ -83,7 +85,7 @@ class SprintInfo:
             command=lambda: self.wijzig_sprint(1)
         )
         self.volgende_knop.pack(side="left", padx=3)
-
+ 
         self.toon_sprint()
 
     def wijzig_sprint(self, stap):
@@ -93,6 +95,10 @@ class SprintInfo:
             nieuw_index = self.index + stap
             if 0 <= nieuw_index < len(self.sprints):
                 self.index = nieuw_index
+
+        self.huidige_knop.config(
+            state="disabled" if self.index == self.huidige_index else "normal"
+        )
 
         self.toon_sprint()
 
