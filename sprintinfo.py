@@ -1,9 +1,10 @@
-
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
 import json
 import sys
 from datetime import date
+from sprintgegevens import haal_sprintresultaten_op
 
 
 class SprintInfo:
@@ -85,8 +86,61 @@ class SprintInfo:
             command=lambda: self.wijzig_sprint(1)
         )
         self.volgende_knop.pack(side="left", padx=3)
- 
+
+        self.vernieuw_knop = tk.Button(
+            knoppen,
+            text="↻ Vernieuwen",
+            command=self.vernieuw_sprints,
+        )
+        self.vernieuw_knop.pack(side="left", padx=12)
+
         self.toon_sprint()
+
+    def vernieuw_sprints(self):
+        geselecteerde_sprint = self.sprints[self.index]["naam"]
+        self.vernieuw_knop.config(state="disabled")
+
+        try:
+            sprints = haal_sprintresultaten_op()
+
+            for sprint in sprints:
+                sprint["begindatum"] = date.fromisoformat(
+                    sprint["begindatum"]
+                )
+                sprint["einddatum"] = date.fromisoformat(
+                    sprint["einddatum"]
+                )
+
+            vandaag = date.today()
+            huidige_index = next(
+                (
+                    i for i, sprint in enumerate(sprints)
+                    if sprint["einddatum"] >= vandaag
+                ),
+                len(sprints) - 1,
+            )
+
+            self.sprints = sprints
+            self.huidige_index = huidige_index
+            self.index = next(
+                (
+                    i for i, sprint in enumerate(sprints)
+                    if sprint["naam"] == geselecteerde_sprint
+                ),
+                huidige_index,
+            )
+
+            self.wijzig_sprint(0) if self.index == huidige_index else self.toon_sprint()
+
+        except Exception as fout:
+            messagebox.showerror(
+                "Vernieuwen mislukt",
+                str(fout),
+                parent=self.window,
+            )
+
+        finally:
+            self.vernieuw_knop.config(state="normal")
 
     def wijzig_sprint(self, stap):
         if stap == 0:
@@ -172,9 +226,9 @@ if __name__ == "__main__":
     huidige_index = next(
         (
             i for i, sprint in enumerate(sprints)
-            if sprint["begindatum"] <= vandaag <= sprint["einddatum"]
+            if sprint["einddatum"] >= vandaag
         ),
-        0,
+        len(sprints) - 1,
     )
 
     SprintInfo(sprints, huidige_index).window.mainloop()

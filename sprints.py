@@ -1,7 +1,22 @@
+from dataclasses import dataclass
+from datetime import date
+
+
+@dataclass(frozen=True)
+class Sprint:
+    naam: str
+    begindatum: date
+    einddatum: date
+
+
 def zoek_sprint(datum, sprints):
     gevonden = [
         sprint for sprint in sprints
-        if sprint["begindatum"] <= datum <= sprint["einddatum"]
+        if (
+            sprint.begindatum <= datum <= sprint.einddatum
+            if isinstance(sprint, Sprint)
+            else sprint["begindatum"] <= datum <= sprint["einddatum"]
+        )
     ]
 
     if len(gevonden) > 1:

@@ -13,13 +13,18 @@ class Medewerker:
         beheerder=False,
         access_analist=False,
         einddatum=None,
+        startdatum=date(2025, 1, 1),
     ):
         if not isinstance(beheerder, bool):
             raise ValueError("Beheerder moet True of False zijn.")
         if not isinstance(access_analist, bool):
             raise ValueError("AccessAnalist moet True of False zijn.")
+        if not isinstance(startdatum, date):
+            raise ValueError("Startdatum moet een datum zijn.")
         if einddatum is not None and not isinstance(einddatum, date):
             raise ValueError("Einddatum moet een datum zijn of None.")
+        if einddatum is not None and einddatum < startdatum:
+            raise ValueError("Einddatum mag niet vóór de startdatum liggen.")
 
         self.userid = userid
         self.voornaam = voornaam
@@ -29,6 +34,7 @@ class Medewerker:
         self.werkstromen = werkstromen
         self.beheerder = beheerder
         self.access_analist = access_analist
+        self.startdatum = startdatum
         self.einddatum = einddatum
 
     @property

@@ -78,6 +78,10 @@ def bereken_netto_uren_medewerkers(
         datum = startdatum
 
         while datum <= einddatum:
+            if medewerker.einddatum is not None and datum > medewerker.einddatum:
+                datum += timedelta(days=1)
+                continue
+
             geldige = [
                 t for t in toewijzingen
                 if t.medewerker is medewerker and t.geldt_op(datum)
