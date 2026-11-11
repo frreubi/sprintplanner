@@ -1,1 +1,0 @@
-& "C:\Program Files\LibreOffice\program\soffice.exe" --accept="socket,host=127.0.0.1,port=2002;urp;StarOffice.ServiceManager" --norestore --nodefault

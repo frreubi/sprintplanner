@@ -6,7 +6,7 @@ LO_PYTHON = Path(
 )
 
 PROJECTMAP = Path(__file__).parent
-UNO_CLIENT = PROJECTMAP / "test_uno_client.py"
+UNO_CLIENT = PROJECTMAP / "uno_client.py"
 
 
 def haal_contractbericht_op():
@@ -15,9 +15,24 @@ def haal_contractbericht_op():
         capture_output=True,
         text=True,
         encoding="utf-8",
-        check=True,
+        check=False,
     )
+
+    if resultaat.returncode != 0:
+        details = resultaat.stderr.strip() or resultaat.stdout.strip()
+        raise RuntimeError(
+            "Ophalen van het contractbericht via LibreOffice is mislukt.\n"
+            f"Exitcode: {resultaat.returncode}\n"
+            f"{details or 'Geen foutmelding ontvangen.'}"
+        )
+
+    if not resultaat.stdout.strip():
+        raise RuntimeError(
+            "LibreOffice heeft geen contractbericht teruggegeven."
+        )
+
     return resultaat.stdout
+
 
 def haal_sprintresultaten_op():
     from applicatie import verwerk_contract

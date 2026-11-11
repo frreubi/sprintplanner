@@ -15,23 +15,6 @@ PYTHON = Path(
     r"C:\Users\frreu\AppData\Local\Python\pythoncore-3.15-64\python.exe"
 )
 
-LO_PYTHON = Path(
-    r"C:\Program Files\LibreOffice\program\python.exe"
-)
-
-UNO_CLIENT = PROJECTMAP / "test_uno_client.py"
-
-def haal_contractbericht_op():
-    resultaat = subprocess.run(
-        [str(LO_PYTHON), str(UNO_CLIENT)],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=True
-    )
-
-    return resultaat.stdout
-
 def verwerk_contract(bericht):
     gegevens = laad_contract(bericht)
     sprintresultaten = []
@@ -56,10 +39,6 @@ def verwerk_contract(bericht):
         })
 
     return sprintresultaten
-
-def haal_sprintgegevens_op():
-    bericht = haal_contractbericht_op()
-    return verwerk_contract(bericht)
 
 def start(bericht):
     sprintresultaten = verwerk_contract(bericht)

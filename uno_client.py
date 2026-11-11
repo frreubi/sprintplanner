@@ -1,13 +1,12 @@
 import uno
-import json
-import applicatie
+
 
 def verbind():
     lokaal = uno.getComponentContext()
 
     resolver = lokaal.ServiceManager.createInstanceWithContext(
         "com.sun.star.bridge.UnoUrlResolver",
-        lokaal
+        lokaal,
     )
 
     return resolver.resolve(
@@ -15,9 +14,8 @@ def verbind():
     )
 
 
-if __name__ == "__main__":
+def haal_contractbericht_op():
     document = verbind()
-
     provider = document.getScriptProvider()
 
     script = provider.getScript(
@@ -26,7 +24,8 @@ if __name__ == "__main__":
     )
 
     resultaat = script.invoke((), (), ())
-    contract_json = resultaat[0]
-    resultaten = applicatie.verwerk_contract(contract_json)
+    return resultaat[0]
 
-    print(contract_json)
+
+if __name__ == "__main__":
+    print(haal_contractbericht_op())
