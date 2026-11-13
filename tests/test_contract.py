@@ -101,18 +101,13 @@ class TestContract(unittest.TestCase):
             "CONTRACTVERSIE_NIET_ONDERSTEUND",
         )
 
-    def test_ontbrekende_roostertoewijzing_is_harde_fout(self):
+    def test_ontbrekende_roostertoewijzing_wordt_doorgelaten_naar_sprintvalidatie(self):
         data = voorbeeld()
         data["toewijzingen"] = []
 
-        with self.assertRaises(ContractValidatieFout) as context:
-            laad_contract(json.dumps(data))
+        gegevens = laad_contract(json.dumps(data))
 
-        self.assertEqual(
-            context.exception.foutcode,
-            "ROOSTERTOEWIJZING_ONTBREEKT",
-        )
-        self.assertIn("2026-11-02", context.exception.omschrijving)
+        self.assertEqual(gegevens["toewijzingen"], [])
 
     def test_roosterovergang_over_weekend_is_geldig(self):
         data = voorbeeld()
@@ -137,7 +132,7 @@ class TestContract(unittest.TestCase):
 
         self.assertEqual(len(gegevens["toewijzingen"]), 2)
 
-    def test_roostertoewijzing_op_maandag_na_weekend_verplicht(self):
+    def test_gat_in_roostertoewijzingen_wordt_doorgelaten(self):
         data = voorbeeld()
         data["sprints"][0]["begindatum"] = "2026-10-19"
         data["sprints"][0]["einddatum"] = "2026-10-30"
@@ -156,14 +151,9 @@ class TestContract(unittest.TestCase):
             "geldig_tm": None,
         })
 
-        with self.assertRaises(ContractValidatieFout) as context:
-            laad_contract(json.dumps(data))
+        gegevens = laad_contract(json.dumps(data))
 
-        self.assertEqual(
-            context.exception.foutcode,
-            "ROOSTERTOEWIJZING_ONTBREEKT",
-        )
-        self.assertIn("2026-10-26", context.exception.omschrijving)
+        self.assertEqual(len(gegevens["toewijzingen"]), 2)
 
     def test_roosteruren_boven_negen_afgekeurd(self):
         data = voorbeeld()
@@ -181,16 +171,15 @@ class TestContract(unittest.TestCase):
         with self.assertRaises(ContractValidatieFout):
             laad_contract(json.dumps(data))
 
-    def test_onbekende_afwezigheidscode_afgekeurd(self):
+    def test_afwezigheidscode_wordt_bewaard_voor_sprintvalidatie(self):
         data = voorbeeld()
         data["afwezigheden"][0]["code"] = "X"
 
-        with self.assertRaises(ContractValidatieFout) as context:
-            laad_contract(json.dumps(data))
+        gegevens = laad_contract(json.dumps(data))
 
         self.assertEqual(
-            context.exception.foutcode,
-            "ONGELDIGE_AFWEZIGHEIDSCODE",
+            gegevens["afwezigheid_records"][0]["code"],
+            "X",
         )
 
     def test_afwezigheid_na_einddatum_genegeerd(self):

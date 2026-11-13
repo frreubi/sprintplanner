@@ -25,12 +25,35 @@ class TestApplicatieContract(unittest.TestCase):
         medewerker = resultaat[0]["netto_uren"][0]
         self.assertEqual(medewerker["uren"], 8)
 
-    def test_ongeldige_payload_stopt_verwerking(self):
+    def test_sprint_met_ontbrekende_roostertoewijzing_krijgt_fouten(self):
         data = voorbeeld()
         data["toewijzingen"] = []
 
-        with self.assertRaises(ValueError):
-            verwerk_contract(json.dumps(data))
+        resultaat = verwerk_contract(json.dumps(data))
+
+        self.assertEqual(resultaat[0]["netto_uren"], [])
+        self.assertTrue(resultaat[0]["fouten"])
+        self.assertIn("geen rooster toegewezen", resultaat[0]["fouten"][0])
+
+    def test_fout_in_een_sprint_blokkeert_andere_sprint_niet(self):
+        data = voorbeeld()
+        data["sprints"].append({
+            "naam": "Sprint 2026-Week 46",
+            "begindatum": "2026-11-09",
+            "einddatum": "2026-11-13",
+        })
+        data["afwezigheden"][0]["code"] = "X"
+
+        resultaat = verwerk_contract(json.dumps(data))
+
+        self.assertEqual(len(resultaat), 2)
+
+        self.assertTrue(resultaat[0]["fouten"])
+        self.assertEqual(resultaat[0]["netto_uren"], [])
+
+        self.assertEqual(resultaat[1]["fouten"], [])
+        self.assertEqual(len(resultaat[1]["netto_uren"]), 1)
+        self.assertEqual(resultaat[1]["netto_uren"][0]["userid"], "j001")
 
 
 if __name__ == "__main__":

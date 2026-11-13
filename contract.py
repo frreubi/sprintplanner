@@ -1,6 +1,5 @@
 import json
-import re
-from datetime import date, timedelta
+from datetime import date
 
 from medewerker import Medewerker
 from rooster import Rooster
@@ -181,7 +180,6 @@ def laad_contract(json_tekst):
         roosters[rooster_id] = Rooster(rooster_id, cyclus, weken)
 
     toewijzingen = []
-    per_medewerker = {userid: [] for userid in medewerkers_op_id}
     for i, item in enumerate(gegevens["toewijzingen"]):
         pad = f"$.toewijzingen[{i}]"
         if not isinstance(item, dict):
@@ -196,64 +194,45 @@ def laad_contract(json_tekst):
         eind = _datum(item.get("geldig_tm"), "toewijzingen", f"{pad}.geldig_tm", verplicht=False)
         if eind is not None and eind < begin:
             _fout("ONGELDIGE_PERIODE", "toewijzingen", pad, "geldig_tm ligt vóór geldig_vanaf.")
-        toewijzing = Roostertoewijzing(medewerkers_op_id[userid], roosters[rooster_id], begin, eind)
-        toewijzingen.append(toewijzing)
-        per_medewerker[userid].append(toewijzing)
-
-    for userid, items in per_medewerker.items():
-        items.sort(key=lambda t: t.geldig_vanaf)
-        for vorige, volgende in zip(items, items[1:]):
-            if vorige.geldig_tm is None or volgende.geldig_vanaf <= vorige.geldig_tm:
-                _fout("OVERLAPPENDE_TOEWIJZING", "toewijzingen", f"$.toewijzingen[{userid}]", f"Toewijzingen voor {userid} overlappen.")
-
-    for sprint in sprints:
-        for medewerker in medewerkers:
-            eerste_dag = max(sprint.begindatum, medewerker.startdatum)
-            laatste_dag = min(
-                sprint.einddatum,
-                medewerker.einddatum if medewerker.einddatum is not None else sprint.einddatum,
-            )
-            dag = eerste_dag
-
-            while dag <= laatste_dag:
-                if dag.weekday() < 5:
-                    geldig = [
-                        t for t in per_medewerker[medewerker.userid]
-                        if t.geldt_op(dag)
-                    ]
-
-                    if len(geldig) != 1:
-                        _fout(
-                            "ROOSTERTOEWIJZING_ONTBREEKT" if not geldig else "MEERDERE_ROOSTERTOEWIJZINGEN",
-                            "toewijzingen",
-                            f"$.toewijzingen[{medewerker.userid}].{dag.isoformat()}",
-                            f"Medewerker {medewerker.userid} moet op {dag.isoformat()} precies één roostertoewijzing hebben.",
-                        )
-
-                dag += timedelta(days=1)
+        toewijzingen.append(
+            Roostertoewijzing(medewerkers_op_id[userid], roosters[rooster_id], begin, eind)
+        )
 
     afwezigheden = {}
-    patroon = re.compile(r"^(?:[1-9][0-9]*)?[VBCZ]$")
+    afwezigheid_records = []
+
     for i, item in enumerate(gegevens["afwezigheden"]):
         pad = f"$.afwezigheden[{i}]"
+
         if not isinstance(item, dict):
             _fout("ONGELDIGE_STRUCTUUR", "afwezigheden", pad, "Afwezigheid moet een object zijn.")
+
         userid = _tekst(item, "userid", "afwezigheden", pad)
         if userid not in medewerkers_op_id:
             _fout("ONBEKENDE_MEDEWERKER", "afwezigheden", f"{pad}.userid", f"Onbekende medewerker: {userid}.")
+
         datum = _datum(item.get("datum"), "afwezigheden", f"{pad}.datum")
-        code = _tekst(item, "code", "afwezigheden", pad).upper()
-        if not patroon.fullmatch(code):
-            _fout("ONGELDIGE_AFWEZIGHEIDSCODE", "afwezigheden", f"{pad}.code", f"Onbekende afwezigheidscode: {code}.")
-        if datum in afwezigheden.setdefault(userid, {}):
-            _fout("DUBBELE_AFWEZIGHEID", "afwezigheden", pad, f"Medewerker {userid} heeft meer dan één afwezigheid op {datum}.")
+
         medewerker = medewerkers_op_id[userid]
-        if (
+        afwezigheden.setdefault(userid, {})
+
+        if not (
             medewerker.startdatum <= datum
             and (medewerker.einddatum is None or datum <= medewerker.einddatum)
         ):
-            afwezigheden[userid][datum] = code
+            continue
 
+        code = _tekst(item, "code", "afwezigheden", pad).upper()
+
+        afwezigheid_records.append({
+            "userid": userid,
+            "datum": datum,
+            "code": code,
+            "gegevenspad": pad,
+        })
+
+        afwezigheden.setdefault(userid, {})[datum] = code
+        
     agile_instellingen = []
     toegestane_types = {"DagStart", "Refinement", "Sprintwissel"}
     toegestane_dagen = {"ma", "di", "wo", "do", "vr"}
@@ -276,6 +255,7 @@ def laad_contract(json_tekst):
         "roosters": roosters,
         "toewijzingen": toewijzingen,
         "afwezigheden": afwezigheden,
+        "afwezigheid_records": afwezigheid_records,
         "agile_instellingen": agile_instellingen,
         "uren_per_storypoint": uren_per_storypoint,
         "werkstromen": werkstromen,

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from berekeningen import bereken_sprintresultaten
 from contract import laad_contract
+from validatie import valideer_sprintgegevens
 
 
 PROJECTMAP = Path(
@@ -15,20 +16,31 @@ PYTHON = Path(
     r"C:\Users\frreu\AppData\Local\Python\pythoncore-3.15-64\python.exe"
 )
 
+
 def verwerk_contract(bericht):
     gegevens = laad_contract(bericht)
     sprintresultaten = []
 
     for sprint in gegevens["sprints"]:
-        netto_uren = bereken_sprintresultaten(
+        fouten = valideer_sprintgegevens(
             gegevens["medewerkers"],
             sprint.begindatum,
             sprint.einddatum,
-            gegevens["afwezigheden"],
+            gegevens["afwezigheid_records"],
             gegevens["toewijzingen"],
-            gegevens["agile_instellingen"],
-            gegevens["uren_per_storypoint"],
         )
+
+        netto_uren = []
+        if not fouten:
+            netto_uren = bereken_sprintresultaten(
+                gegevens["medewerkers"],
+                sprint.begindatum,
+                sprint.einddatum,
+                gegevens["afwezigheden"],
+                gegevens["toewijzingen"],
+                gegevens["agile_instellingen"],
+                gegevens["uren_per_storypoint"],
+            )
 
         sprintresultaten.append({
             "naam": sprint.naam,
@@ -36,9 +48,11 @@ def verwerk_contract(bericht):
             "einddatum": sprint.einddatum.isoformat(),
             "agile_instellingen": gegevens["agile_instellingen"],
             "netto_uren": netto_uren,
+            "fouten": fouten,
         })
 
     return sprintresultaten
+
 
 def start(bericht):
     sprintresultaten = verwerk_contract(bericht)

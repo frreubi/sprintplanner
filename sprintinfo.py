@@ -135,6 +135,18 @@ class SprintInfo:
             text_color=TEKST,
         ).pack(anchor="w", padx=15, pady=12)
 
+        self.fouten_label = ctk.CTkLabel(
+            frame,
+            text="",
+            text_color="#F2A3A3",
+            fg_color=RIJ,
+            corner_radius=8,
+            justify="left",
+            anchor="w",
+            wraplength=620,
+            font=("Segoe UI", 12),
+        )
+
         self.koppen_frame = ctk.CTkFrame(
             frame,
             fg_color="transparent",
@@ -350,10 +362,43 @@ class SprintInfo:
             )
         )
 
-        self.build_table_header(werkstromen)
+        fouten = sprint.get("fouten", [])
 
-        for medewerker in sprint["netto_uren"]:
-            self.build_table_row(medewerker, werkstromen, veld)
+        if fouten:
+            self.koppen_frame.pack_forget()
+            self.medewerkers_frame.pack_forget()
+
+            tekst = (
+                "Deze sprint kan niet worden berekend. "
+                "Los eerst de volgende fouten op:\n\n"
+            )
+            tekst += "\n".join(f"• {fout}" for fout in fouten)
+
+            self.fouten_label.configure(text=tekst)
+            self.fouten_label.pack(
+                fill="x",
+                padx=10,
+                pady=(5, 10),
+            )
+        else:
+            self.fouten_label.pack_forget()
+
+            self.koppen_frame.pack(
+                fill="x",
+                padx=(10, 26),
+                pady=5,
+            )
+            self.medewerkers_frame.pack(
+                fill="both",
+                expand=True,
+                padx=10,
+                pady=(0, 10),
+            )
+
+            self.build_table_header(werkstromen)
+
+            for medewerker in sprint["netto_uren"]:
+                self.build_table_row(medewerker, werkstromen, veld)
 
         self.update_navigation()
 
