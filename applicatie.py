@@ -40,6 +40,7 @@ def verwerk_contract(bericht):
                 gegevens["toewijzingen"],
                 gegevens["agile_instellingen"],
                 gegevens["uren_per_storypoint"],
+                gegevens["rollen"],
             )
 
         sprintresultaten.append({

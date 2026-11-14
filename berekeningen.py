@@ -1,6 +1,6 @@
 from decimal import Decimal, ROUND_HALF_UP, ROUND_FLOOR
 from datetime import date, timedelta
-from toewijzingen import zoek_toewijzing
+from toewijzingen import zoek_toewijzing, Roostertoewijzing
 
 
 def bereken_roosteruren(medewerkers, startdatum, einddatum, toewijzingen):
@@ -12,8 +12,10 @@ def bereken_roosteruren(medewerkers, startdatum, einddatum, toewijzingen):
         totaal_uren = 0
         datum = startdatum
         while datum <= einddatum:
-            toewijzing = zoek_toewijzing(medewerker, datum, toewijzingen)
-            totaal_uren += toewijzing.rooster.uren_op(datum)
+            rooster_toewijzing, _ = zoek_toewijzing(
+                medewerker, datum, toewijzingen
+            )
+            totaal_uren += rooster_toewijzing.rooster.uren_op(datum)
             datum += timedelta(days=1)
         resultaten.append([
             medewerker.userid,
@@ -75,49 +77,45 @@ def bereken_netto_uren_medewerkers(
         afwezigheid = afwezigheden.get(medewerker.userid, {})
         netto_uren = 0
         werkzaam = False
-        datum = startdatum
+        datum = max(startdatum, medewerker.startdatum)
+        laatste_dag = min(
+            einddatum,
+            medewerker.einddatum if medewerker.einddatum is not None else einddatum,
+        )
 
-        while datum <= einddatum:
-            if medewerker.einddatum is not None and datum > medewerker.einddatum:
-                datum += timedelta(days=1)
-                continue
-
-            geldige = [
+        while datum <= laatste_dag:
+            roosters = [
                 t for t in toewijzingen
-                if t.medewerker is medewerker and t.geldt_op(datum)
+                if isinstance(t, Roostertoewijzing)
+                and t.medewerker is medewerker
+                and t.geldt_op(datum)
             ]
 
-            if geldige:
-                toewijzing = zoek_toewijzing(
+            if roosters:
+                rooster_toewijzing, _ = zoek_toewijzing(
                     medewerker, datum, toewijzingen
                 )
                 werkzaam = True
-                roosteruren = toewijzing.rooster.uren_op(datum)
+                roosteruren = rooster_toewijzing.rooster.uren_op(datum)
 
                 if datum not in feestdagen:
-                    code = afwezigheid.get(datum)
                     beschikbare_uren = bereken_netto_uren(
-                        roosteruren, code
+                        roosteruren, afwezigheid.get(datum)
                     )
-
                     overhead = bereken_agile_overhead_per_dag(
                         medewerker, datum, startdatum,
                         toewijzingen, agile_instellingen,
                         beschikbare_uren
                     )
-
                     netto_uren += beschikbare_uren - overhead
 
             datum += timedelta(days=1)
 
         if werkzaam:
-            resultaten.append([
-                medewerker.userid,
-                medewerker.naam,
-                netto_uren,
-            ])
+            resultaten.append([medewerker.userid, medewerker.naam, netto_uren])
 
     return resultaten
+
 
 def bereken_feestdagen(jaar):
     a = jaar % 19
@@ -149,36 +147,34 @@ def bereken_feestdagen(jaar):
         date(jaar, 12, 26),
     }
 
-def bereken_agile_overhead_per_dag(medewerker, datum, startdatum, toewijzingen, agile_instellingen, beschikbare_uren):
+def bereken_agile_overhead_per_dag(
+    medewerker, datum, startdatum, toewijzingen,
+    agile_instellingen, beschikbare_uren
+):
     dag = ("ma", "di", "wo", "do", "vr", "za", "zo")[datum.weekday()]
-
-    toewijzing = zoek_toewijzing(medewerker, datum, toewijzingen)
-
-    if not toewijzing:
+    roosters = [
+        t for t in toewijzingen
+        if isinstance(t, Roostertoewijzing)
+        and t.medewerker is medewerker
+        and t.geldt_op(datum)
+    ]
+    if len(roosters) != 1:
         return 0
 
-    roosteruren = toewijzing.rooster.uren_op(datum)
+    roosteruren = roosters[0].rooster.uren_op(datum)
     dag_overhead = 0
-
-    sprintwissel = (
-        datum == startdatum
-        and roosteruren > 0
-    )
+    sprintwissel = datum == startdatum and roosteruren > 0
 
     for instelling in agile_instellingen:
         if instelling["type"] == "Sprintwissel":
             if sprintwissel:
                 dag_overhead += instelling["duur"]
-
         elif dag in instelling["dagen"]:
             if instelling["type"] == "DagStart" and sprintwissel:
                 continue
-
             dag_overhead += instelling["duur"]
 
-    dag_overhead = min(dag_overhead, beschikbare_uren)
-
-    return dag_overhead
+    return min(dag_overhead, beschikbare_uren)
 
 
 def bereken_storypoints(standaard_werkstroom, netto_uren, werkstromen, uren_per_storypoint):
@@ -193,9 +189,6 @@ def bereken_storypoints(standaard_werkstroom, netto_uren, werkstromen, uren_per_
     if standaard_werkstroom is not None and standaard_werkstroom not in percentages:
         raise ValueError("Onbekende standaard werkstroom.")
     
-    if standaard_werkstroom is not None and percentages[standaard_werkstroom] == 0:
-        raise ValueError("De standaardwerkstroom moet een percentage groter dan nul hebben.")
-
     if any(p < 0 for p in percentages.values()):
         raise ValueError("Rolpercentages mogen niet negatief zijn.")
 
@@ -250,44 +243,115 @@ def bereken_storypoints(standaard_werkstroom, netto_uren, werkstromen, uren_per_
     return {"totaal": totaal, **verdeling}
 
 
-def bereken_sprintresultaten(medewerkers, startdatum, einddatum, afwezigheden, toewijzingen, agile_instellingen, uren_per_storypoint,):
-    netto_resultaten = bereken_netto_uren_medewerkers(medewerkers, startdatum, einddatum, afwezigheden, toewijzingen, agile_instellingen,)
-    medewerkers_op_id = {
-        medewerker.userid: medewerker
-        for medewerker in medewerkers
+def _werkstroompercentages(rol, percentage_toewijzing):
+    standaard = rol.standaardwerkstroom
+    expliciet = (
+        percentage_toewijzing.percentageverdeling.verdeling
+        if percentage_toewijzing is not None
+        else {}
+    )
+
+    if standaard in expliciet:
+        return dict(expliciet)
+
+    verdeling = dict(expliciet)
+    if standaard is not None:
+        verdeling[standaard] = 1 - sum(expliciet.values())
+    return verdeling
+
+
+def bereken_sprintresultaten(
+    medewerkers, startdatum, einddatum, afwezigheden,
+    toewijzingen, agile_instellingen, uren_per_storypoint, rollen
+):
+    netto_resultaten = bereken_netto_uren_medewerkers(
+        medewerkers, startdatum, einddatum, afwezigheden,
+        toewijzingen, agile_instellingen,
+    )
+    netto_per_id = {
+        userid: (naam, uren) for userid, naam, uren in netto_resultaten
     }
 
     resultaten = []
-    for userid, naam, netto_uren in netto_resultaten:
-        medewerker = medewerkers_op_id[userid]    
-        standaard_werkstroom = (
-            medewerker.rol.lower()
-            if medewerker.rol.lower() in medewerker.werkstromen
-            else None
+    feestdagen = set()
+    for jaar in range(startdatum.year, einddatum.year + 1):
+        feestdagen.update(bereken_feestdagen(jaar))
+
+    for medewerker in medewerkers:
+        if medewerker.userid not in netto_per_id:
+            continue
+
+        naam, netto_uren = netto_per_id[medewerker.userid]
+        rol = rollen[medewerker.rol]
+        uren_per_werkstroom = {}
+        datum = max(startdatum, medewerker.startdatum)
+        laatste_dag = min(
+            einddatum,
+            medewerker.einddatum if medewerker.einddatum is not None else einddatum,
         )
-        storypoints = bereken_storypoints(standaard_werkstroom,
+
+        while datum <= laatste_dag:
+            if datum.weekday() < 5 and datum not in feestdagen:
+                roosters = [
+                    t for t in toewijzingen
+                    if isinstance(t, Roostertoewijzing)
+                    and t.medewerker is medewerker
+                    and t.geldt_op(datum)
+                ]
+                if len(roosters) == 1:
+                    roosteruren = roosters[0].rooster.uren_op(datum)
+                    code = afwezigheden.get(medewerker.userid, {}).get(datum)
+                    beschikbare_uren = bereken_netto_uren(roosteruren, code)
+                    overhead = bereken_agile_overhead_per_dag(
+                        medewerker, datum, startdatum, toewijzingen,
+                        agile_instellingen, beschikbare_uren,
+                    )
+                    sprinturen = beschikbare_uren - overhead
+                    percentage_toewijzing = next((
+                        t for t in toewijzingen
+                        if t.medewerker is medewerker
+                        and not isinstance(t, Roostertoewijzing)
+                        and t.geldt_op(datum)
+                    ), None)
+                    verdeling = _werkstroompercentages(
+                        rol, percentage_toewijzing
+                    )
+                    for werkstroom, fractie in verdeling.items():
+                        uren_per_werkstroom[werkstroom] = (
+                            uren_per_werkstroom.get(werkstroom, 0)
+                            + sprinturen * fractie
+                        )
+            datum += timedelta(days=1)
+
+        totaal_sprinturen = sum(uren_per_werkstroom.values())
+        percentages = {
+            werkstroom: uren / netto_uren * 100
+            for werkstroom, uren in uren_per_werkstroom.items()
+        } if netto_uren else {
+            werkstroom: 0 for werkstroom in uren_per_werkstroom
+        }
+        storypoints = bereken_storypoints(
+            rol.standaardwerkstroom,
             netto_uren,
-            medewerker.werkstromen,
+            percentages,
             uren_per_storypoint,
-        )    
+        )
+
         resultaten.append({
-            "userid": userid,
+            "userid": medewerker.userid,
             "naam": naam,
             "uren": netto_uren,
             "storypoints": storypoints["totaal"],
-            "werkstromen": medewerker.werkstromen,
+            "werkstromen": percentages,
             "uren_per_werkstroom": {
-                werkstroom: round(
-                    netto_uren * percentage / 100, 2
-                )
-                for werkstroom, percentage in medewerker.werkstromen.items()
-                if percentage > 0
+                werkstroom: round(uren, 2)
+                for werkstroom, uren in uren_per_werkstroom.items()
             },
             "storypoints_per_werkstroom": {
                 werkstroom: punten
                 for werkstroom, punten in storypoints.items()
                 if werkstroom != "totaal"
             },
-        }) 
+        })
 
     return resultaten

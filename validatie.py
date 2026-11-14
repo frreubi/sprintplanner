@@ -2,6 +2,7 @@ import re
 from datetime import timedelta
 
 from berekeningen import bereken_feestdagen
+from toewijzingen import Roostertoewijzing, PercentageToewijzing
 
 
 PATROON_AFWEZIGHEIDSCODE = re.compile(r"^(?:[1-9][0-9]*)?[VBCZ]$")
@@ -40,26 +41,38 @@ def valideer_sprintgegevens(
         dag = eerste_dag
         while dag <= laatste_dag:
             if dag not in feestdagen:
-                geldige_toewijzingen = [
+                roosters = [
                     toewijzing
                     for toewijzing in toewijzingen
-                    if (
-                        toewijzing.medewerker is medewerker
-                        and toewijzing.geldt_op(dag)
-                    )
+                    if isinstance(toewijzing, Roostertoewijzing)
+                    and toewijzing.medewerker is medewerker
+                    and toewijzing.geldt_op(dag)
                 ]
 
                 if dag.weekday() < 5:
-                    if not geldige_toewijzingen:
+                    if not roosters:
                         fouten.append(
                             f"Medewerker {medewerker.userid} heeft op "
                             f"{dag.isoformat()} geen rooster toegewezen."
                         )
-                    elif len(geldige_toewijzingen) > 1:
+                    elif len(roosters) > 1:
                         fouten.append(
                             f"Medewerker {medewerker.userid} heeft op "
                             f"{dag.isoformat()} meerdere roosters toegewezen."
                         )
+
+                percentages = [
+                    toewijzing
+                    for toewijzing in toewijzingen
+                    if isinstance(toewijzing, PercentageToewijzing)
+                    and toewijzing.medewerker is medewerker
+                    and toewijzing.geldt_op(dag)
+                ]
+                if len(percentages) > 1:
+                    fouten.append(
+                        f"Medewerker {medewerker.userid} heeft op "
+                        f"{dag.isoformat()} meerdere percentage-toewijzingen."
+                    )
 
                 records = records_per_dag.get(
                     (medewerker.userid, dag), []

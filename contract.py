@@ -3,7 +3,9 @@ from datetime import date
 
 from medewerker import Medewerker
 from rooster import Rooster
-from toewijzingen import Roostertoewijzing
+from rollen import Rol
+from percentages import Percentageverdeling
+from toewijzingen import Roostertoewijzing, PercentageToewijzing
 from sprints import Sprint
 
 
@@ -75,12 +77,12 @@ def laad_contract(json_tekst):
         _fout("ONGELDIGE_STRUCTUUR", "contract", "$", "Het contract moet een JSON-object zijn.")
 
     contract = gegevens.get("contract")
-    if not isinstance(contract, dict) or contract.get("naam") != "Sprintplanner" or contract.get("versie") != "2.0":
-        _fout("CONTRACTVERSIE_NIET_ONDERSTEUND", "contract", "$.contract", "Alleen Sprintplanner-contractversie 2.0 wordt ondersteund.")
+    if not isinstance(contract, dict) or contract.get("naam") != "Sprintplanner" or contract.get("versie") != "3.0":
+        _fout("CONTRACTVERSIE_NIET_ONDERSTEUND", "contract", "$.contract", "Alleen Sprintplanner-contractversie 3.0 wordt ondersteund.")
 
     verplicht = (
-        "sprints", "medewerkers", "roosters", "toewijzingen",
-        "afwezigheden", "agile_instellingen", "instellingen",
+        "sprints", "rollen", "medewerkers", "roosters", "percentages",
+        "toewijzingen", "afwezigheden", "agile_instellingen", "instellingen",
     )
     for onderdeel in verplicht:
         if onderdeel not in gegevens:
@@ -95,15 +97,6 @@ def laad_contract(json_tekst):
         instellingen_data.get("uren_per_storypoint"), "instellingen",
         "$.instellingen.uren_per_storypoint", positief=True
     )
-    werkstromen = instellingen_data.get("werkstromen")
-    if (
-        not isinstance(werkstromen, list)
-        or not werkstromen
-        or any(not isinstance(w, str) or not w.strip() for w in werkstromen)
-        or len({w.strip().lower() for w in werkstromen}) != len(werkstromen)
-    ):
-        _fout("ONGELDIGE_WERKSTROMEN", "instellingen", "$.instellingen.werkstromen", "Werkstromen moeten een niet-lege lijst met unieke namen zijn.")
-    werkstromen = [w.strip().lower() for w in werkstromen]
 
     sprints = []
     for i, item in enumerate(gegevens["sprints"]):
@@ -116,6 +109,29 @@ def laad_contract(json_tekst):
             _fout("ONGELDIGE_PERIODE", "sprints", pad, "Einddatum ligt vóór begindatum.")
         sprints.append(Sprint(_tekst(item, "naam", "sprints", pad), begin, eind))
 
+    rollen = {}
+    for i, item in enumerate(gegevens["rollen"]):
+        pad = f"$.rollen[{i}]"
+        if not isinstance(item, dict):
+            _fout("ONGELDIGE_STRUCTUUR", "rollen", pad, "Rol moet een object zijn.")
+        rol_id = _tekst(item, "rol_id", "rollen", pad).lower()
+        if rol_id in rollen:
+            _fout("DUBBEL_ROL_ID", "rollen", f"{pad}.rol_id", f"Rol-ID {rol_id!r} komt meer dan eenmaal voor.")
+        naam = _tekst(item, "naam", "rollen", pad)
+        standaardwerkstroom = item.get("standaardwerkstroom")
+        if standaardwerkstroom is not None:
+            if not isinstance(standaardwerkstroom, str) or not standaardwerkstroom.strip():
+                _fout("ONGELDIGE_WAARDE", "rollen", f"{pad}.standaardwerkstroom", "Standaardwerkstroom moet tekst zijn of null.")
+            standaardwerkstroom = standaardwerkstroom.strip().lower()
+        begin = _datum(item.get("geldig_vanaf"), "rollen", f"{pad}.geldig_vanaf")
+        eind = _datum(item.get("geldig_tm"), "rollen", f"{pad}.geldig_tm", verplicht=False)
+        if eind is not None and eind < begin:
+            _fout("ONGELDIGE_PERIODE", "rollen", pad, "geldig_tm ligt vóór geldig_vanaf.")
+        try:
+            rollen[rol_id] = Rol(rol_id, naam, standaardwerkstroom, begin, eind)
+        except (TypeError, ValueError) as exc:
+            _fout("ONGELDIGE_ROL", "rollen", pad, str(exc))
+
     medewerkers = []
     medewerkers_op_id = {}
     for i, item in enumerate(gegevens["medewerkers"]):
@@ -125,33 +141,30 @@ def laad_contract(json_tekst):
         userid = _tekst(item, "userid", "medewerkers", pad)
         if userid in medewerkers_op_id:
             _fout("DUBBEL_USERID", "medewerkers", f"{pad}.userid", f"Userid {userid!r} komt meer dan eenmaal voor.")
-        percentages = item.get("werkstromen")
-        if not isinstance(percentages, dict):
-            _fout("ONGELDIGE_WERKSTROMEN", "medewerkers", f"{pad}.werkstromen", "Werkstromen moeten een object zijn.")
-        if set(percentages) != set(werkstromen):
-            _fout("WERKSTROOMAFWIJKING", "medewerkers", f"{pad}.werkstromen", "Werkstroomnamen moeten overeenkomen met instellingen.werkstromen.")
-        for naam, percentage in percentages.items():
-            _getal(percentage, "medewerkers", f"{pad}.werkstromen.{naam}", 0, 100)
-        startdatum = _datum(
-            item.get("startdatum", "2025-01-01"),
-            "medewerkers",
-            f"{pad}.startdatum",
-        )
+        rol_id = _tekst(item, "rol", "medewerkers", pad).lower()
+        if rol_id not in rollen:
+            _fout("ONBEKENDE_ROL", "medewerkers", f"{pad}.rol", f"Onbekende rol: {rol_id}.")
+        startdatum = _datum(item.get("startdatum", "2025-01-01"), "medewerkers", f"{pad}.startdatum")
         einddatum = _datum(item.get("einddatum"), "medewerkers", f"{pad}.einddatum", verplicht=False)
         if einddatum is not None and einddatum < startdatum:
             _fout("ONGELDIGE_PERIODE", "medewerkers", pad, "Einddatum ligt vóór startdatum.")
+        beheerder = item.get("beheerder", False)
+        access_analist = item.get("access_analist", False)
+        if not isinstance(beheerder, bool):
+            _fout("ONGELDIGE_WAARDE", "medewerkers", f"{pad}.beheerder", "Beheerder moet True of False zijn.")
+        if not isinstance(access_analist, bool):
+            _fout("ONGELDIGE_WAARDE", "medewerkers", f"{pad}.access_analist", "AccessAnalist moet True of False zijn.")
         try:
             medewerker = Medewerker(
-                userid,
-                _tekst(item, "voornaam", "medewerkers", pad),
-                _tekst(item, "tussenvoegsel", "medewerkers", pad, leeg_toegestaan=True),
-                _tekst(item, "achternaam", "medewerkers", pad),
-                _tekst(item, "rol", "medewerkers", pad),
-                percentages,
-                item.get("beheerder"),
-                item.get("access_analist"),
-                einddatum,
-                startdatum,
+                userid=userid,
+                voornaam=_tekst(item, "voornaam", "medewerkers", pad),
+                tussenvoegsel=_tekst(item, "tussenvoegsel", "medewerkers", pad, leeg_toegestaan=True),
+                achternaam=_tekst(item, "achternaam", "medewerkers", pad),
+                rol=rol_id,
+                beheerder=beheerder,
+                access_analist=access_analist,
+                einddatum=einddatum,
+                startdatum=startdatum,
             )
         except (TypeError, ValueError) as exc:
             _fout("ONGELDIGE_MEDEWERKER", "medewerkers", pad, str(exc))
@@ -177,7 +190,38 @@ def laad_contract(json_tekst):
                 _fout("ONGELDIGE_ROOSTERSTRUCTUUR", "roosters", f"{pad}.uren_per_week[{weeknr}]", "Een weekpatroon moet vijf werkdagen bevatten.")
             for dag, uren in enumerate(week):
                 _getal(uren, "roosters", f"{pad}.uren_per_week[{weeknr}][{dag}]", 0, 9, geheel=True)
-        roosters[rooster_id] = Rooster(rooster_id, cyclus, weken)
+        try:
+            roosters[rooster_id] = Rooster(rooster_id, cyclus, weken)
+        except (TypeError, ValueError) as exc:
+            _fout("ONGELDIG_ROOSTER", "roosters", pad, str(exc))
+
+    percentages = {}
+    for i, item in enumerate(gegevens["percentages"]):
+        pad = f"$.percentages[{i}]"
+        if not isinstance(item, dict):
+            _fout("ONGELDIGE_STRUCTUUR", "percentages", pad, "Percentageverdeling moet een object zijn.")
+        percentage_id = _tekst(item, "percentage_id", "percentages", pad)
+        if percentage_id in percentages:
+            _fout("DUBBEL_PERCENTAGE_ID", "percentages", f"{pad}.percentage_id", f"Percentage-ID {percentage_id!r} komt meer dan eenmaal voor.")
+        verdeling = item.get("verdeling")
+        if not isinstance(verdeling, dict) or not verdeling:
+            _fout("ONGELDIGE_PERCENTAGEVERDELING", "percentages", f"{pad}.verdeling", "Verdeling moet een niet-leeg object zijn.")
+        genormaliseerde_verdeling = {}
+        for werkstroom, percentage in verdeling.items():
+            if not isinstance(werkstroom, str) or not werkstroom.strip():
+                _fout("ONGELDIGE_WAARDE", "percentages", f"{pad}.verdeling", "Werkstroom-ID moet tekst zijn.")
+            werkstroom_id = werkstroom.strip().lower()
+            if werkstroom_id in genormaliseerde_verdeling:
+                _fout("DUBBELE_WERKSTROOM", "percentages", f"{pad}.verdeling.{werkstroom}", "Werkstroom komt meerdere keren voor na normalisatie.")
+            genormaliseerde_verdeling[werkstroom_id] = _getal(
+                percentage, "percentages", f"{pad}.verdeling.{werkstroom}", 0, 1, positief=True
+            )
+        if sum(genormaliseerde_verdeling.values()) > 1:
+            _fout("ONGELDIGE_PERCENTAGEVERDELING", "percentages", f"{pad}.verdeling", "De totale percentageverdeling mag niet groter zijn dan 100%.")
+        try:
+            percentages[percentage_id] = Percentageverdeling(percentage_id, genormaliseerde_verdeling)
+        except (TypeError, ValueError) as exc:
+            _fout("ONGELDIGE_PERCENTAGEVERDELING", "percentages", pad, str(exc))
 
     toewijzingen = []
     for i, item in enumerate(gegevens["toewijzingen"]):
@@ -185,54 +229,44 @@ def laad_contract(json_tekst):
         if not isinstance(item, dict):
             _fout("ONGELDIGE_STRUCTUUR", "toewijzingen", pad, "Toewijzing moet een object zijn.")
         userid = _tekst(item, "userid", "toewijzingen", pad)
-        rooster_id = _tekst(item, "rooster_id", "toewijzingen", pad)
+        type_ = _tekst(item, "type", "toewijzingen", pad)
+        toewijzing_id = _tekst(item, "toewijzing_id", "toewijzingen", pad)
         if userid not in medewerkers_op_id:
             _fout("ONBEKENDE_MEDEWERKER", "toewijzingen", f"{pad}.userid", f"Onbekende medewerker: {userid}.")
-        if rooster_id not in roosters:
-            _fout("ONBEKEND_ROOSTER", "toewijzingen", f"{pad}.rooster_id", f"Onbekend rooster: {rooster_id}.")
         begin = _datum(item.get("geldig_vanaf"), "toewijzingen", f"{pad}.geldig_vanaf")
         eind = _datum(item.get("geldig_tm"), "toewijzingen", f"{pad}.geldig_tm", verplicht=False)
         if eind is not None and eind < begin:
             _fout("ONGELDIGE_PERIODE", "toewijzingen", pad, "geldig_tm ligt vóór geldig_vanaf.")
-        toewijzingen.append(
-            Roostertoewijzing(medewerkers_op_id[userid], roosters[rooster_id], begin, eind)
-        )
+        medewerker = medewerkers_op_id[userid]
+        if type_ == "Rooster":
+            if toewijzing_id not in roosters:
+                _fout("ONBEKEND_ROOSTER", "toewijzingen", f"{pad}.toewijzing_id", f"Onbekend rooster: {toewijzing_id}.")
+            toewijzingen.append(Roostertoewijzing(medewerker, roosters[toewijzing_id], begin, eind))
+        elif type_ == "Percentage":
+            if toewijzing_id not in percentages:
+                _fout("ONBEKENDE_PERCENTAGEVERDELING", "toewijzingen", f"{pad}.toewijzing_id", f"Onbekende percentageverdeling: {toewijzing_id}.")
+            toewijzingen.append(PercentageToewijzing(medewerker, percentages[toewijzing_id], begin, eind))
+        else:
+            _fout("ONGELDIG_TOEWIJZINGSTYPE", "toewijzingen", f"{pad}.type", f"Onbekend toewijzingstype: {type_}.")
 
     afwezigheden = {}
     afwezigheid_records = []
-
     for i, item in enumerate(gegevens["afwezigheden"]):
         pad = f"$.afwezigheden[{i}]"
-
         if not isinstance(item, dict):
             _fout("ONGELDIGE_STRUCTUUR", "afwezigheden", pad, "Afwezigheid moet een object zijn.")
-
         userid = _tekst(item, "userid", "afwezigheden", pad)
         if userid not in medewerkers_op_id:
             _fout("ONBEKENDE_MEDEWERKER", "afwezigheden", f"{pad}.userid", f"Onbekende medewerker: {userid}.")
-
         datum = _datum(item.get("datum"), "afwezigheden", f"{pad}.datum")
-
         medewerker = medewerkers_op_id[userid]
         afwezigheden.setdefault(userid, {})
-
-        if not (
-            medewerker.startdatum <= datum
-            and (medewerker.einddatum is None or datum <= medewerker.einddatum)
-        ):
+        if not (medewerker.startdatum <= datum and (medewerker.einddatum is None or datum <= medewerker.einddatum)):
             continue
-
         code = _tekst(item, "code", "afwezigheden", pad).upper()
+        afwezigheid_records.append({"userid": userid, "datum": datum, "code": code, "gegevenspad": pad})
+        afwezigheden[userid][datum] = code
 
-        afwezigheid_records.append({
-            "userid": userid,
-            "datum": datum,
-            "code": code,
-            "gegevenspad": pad,
-        })
-
-        afwezigheden.setdefault(userid, {})[datum] = code
-        
     agile_instellingen = []
     toegestane_types = {"DagStart", "Refinement", "Sprintwissel"}
     toegestane_dagen = {"ma", "di", "wo", "do", "vr"}
@@ -251,12 +285,13 @@ def laad_contract(json_tekst):
 
     return {
         "sprints": sprints,
+        "rollen": rollen,
         "medewerkers": medewerkers,
         "roosters": roosters,
+        "percentages": percentages,
         "toewijzingen": toewijzingen,
         "afwezigheden": afwezigheden,
         "afwezigheid_records": afwezigheid_records,
         "agile_instellingen": agile_instellingen,
         "uren_per_storypoint": uren_per_storypoint,
-        "werkstromen": werkstromen,
     }

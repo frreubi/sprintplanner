@@ -1,9 +1,12 @@
 import json
 import unittest
+from datetime import date
 
 from contract import laad_contract
 from tests.test_contract import voorbeeld
 from validatie import valideer_sprintgegevens
+from percentages import Percentageverdeling
+from toewijzingen import PercentageToewijzing
 
 
 class TestValideerSprintgegevens(unittest.TestCase):
@@ -73,6 +76,25 @@ class TestValideerSprintgegevens(unittest.TestCase):
         self.assertEqual(len(fouten), 1)
         self.assertIn("2026-11-02", fouten[0])
         self.assertIn("geen rooster toegewezen", fouten[0])
+
+    def test_meerdere_percentage_toewijzingen_worden_gemeld(self):
+        data = voorbeeld()
+        gegevens = laad_contract(json.dumps(data))
+        medewerker = gegevens["medewerkers"][0]
+        verdeling = Percentageverdeling("P02", {"ops": 0.1})
+        extra = PercentageToewijzing(
+            medewerker, verdeling,
+            date(2026, 11, 3), date(2026, 11, 3)
+        )
+        fouten = valideer_sprintgegevens(
+            gegevens["medewerkers"],
+            gegevens["sprints"][0].begindatum,
+            gegevens["sprints"][0].einddatum,
+            gegevens["afwezigheid_records"],
+            gegevens["toewijzingen"] + [extra],
+        )
+        self.assertEqual(len(fouten), 1)
+        self.assertIn("meerdere percentage-toewijzingen", fouten[0])
 
     def test_meerdere_fouten_worden_verzameld(self):
         data = voorbeeld()

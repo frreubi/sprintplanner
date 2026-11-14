@@ -5,17 +5,26 @@ from datetime import date
 from contract import laad_contract, ContractValidatieFout
 from medewerker import Medewerker
 from rooster import Rooster
-from toewijzingen import Roostertoewijzing
+from rollen import Rol
+from percentages import Percentageverdeling
+from toewijzingen import Roostertoewijzing, PercentageToewijzing
 from sprints import Sprint, zoek_sprint
 
 
 def voorbeeld():
     return {
-        "contract": {"naam": "Sprintplanner", "versie": "2.0"},
+        "contract": {"naam": "Sprintplanner", "versie": "3.0"},
         "sprints": [{
             "naam": "Sprint 2026-Week 45",
             "begindatum": "2026-11-02",
             "einddatum": "2026-11-06",
+        }],
+        "rollen": [{
+            "rol_id": "dev",
+            "naam": "Developer",
+            "standaardwerkstroom": "dev",
+            "geldig_vanaf": "2025-01-01",
+            "geldig_tm": None,
         }],
         "medewerkers": [{
             "userid": "j001",
@@ -23,9 +32,9 @@ def voorbeeld():
             "tussenvoegsel": "",
             "achternaam": "Berg",
             "rol": "dev",
-            "werkstromen": {"dev": 70, "ops": 20, "func": 10},
             "beheerder": False,
             "access_analist": False,
+            "startdatum": "2025-01-01",
             "einddatum": None,
         }],
         "roosters": [{
@@ -33,9 +42,20 @@ def voorbeeld():
             "cyclus_weken": 1,
             "uren_per_week": [[8, 8, 8, 8, 4]],
         }],
+        "percentages": [{
+            "percentage_id": "P001",
+            "verdeling": {"dev": 0.7, "ops": 0.2, "func": 0.1},
+        }],
         "toewijzingen": [{
             "userid": "j001",
-            "rooster_id": "R01",
+            "type": "Rooster",
+            "toewijzing_id": "R01",
+            "geldig_vanaf": "2026-01-01",
+            "geldig_tm": None,
+        }, {
+            "userid": "j001",
+            "type": "Percentage",
+            "toewijzing_id": "P001",
             "geldig_vanaf": "2026-01-01",
             "geldig_tm": None,
         }],
@@ -51,7 +71,6 @@ def voorbeeld():
         }],
         "instellingen": {
             "uren_per_storypoint": 6.0,
-            "werkstromen": ["dev", "ops", "func"],
         },
     }
 
@@ -62,9 +81,12 @@ class TestContract(unittest.TestCase):
         gegevens = laad_contract(json.dumps(voorbeeld()))
 
         self.assertIsInstance(gegevens["sprints"][0], Sprint)
+        self.assertIsInstance(gegevens["rollen"]["dev"], Rol)
         self.assertIsInstance(gegevens["medewerkers"][0], Medewerker)
         self.assertIsInstance(gegevens["roosters"]["R01"], Rooster)
+        self.assertIsInstance(gegevens["percentages"]["P001"], Percentageverdeling)
         self.assertIsInstance(gegevens["toewijzingen"][0], Roostertoewijzing)
+        self.assertIsInstance(gegevens["toewijzingen"][1], PercentageToewijzing)
         self.assertEqual(
             gegevens["afwezigheden"]["j001"][date(2026, 11, 3)],
             "4V",
@@ -91,7 +113,7 @@ class TestContract(unittest.TestCase):
 
     def test_onbekende_contractversie(self):
         data = voorbeeld()
-        data["contract"]["versie"] = "3.0"
+        data["contract"]["versie"] = "2.0"
 
         with self.assertRaises(ContractValidatieFout) as context:
             laad_contract(json.dumps(data))
@@ -103,11 +125,14 @@ class TestContract(unittest.TestCase):
 
     def test_ontbrekende_roostertoewijzing_wordt_doorgelaten_naar_sprintvalidatie(self):
         data = voorbeeld()
-        data["toewijzingen"] = []
+        data["toewijzingen"] = [
+            t for t in data["toewijzingen"] if t["type"] != "Rooster"
+        ]
 
         gegevens = laad_contract(json.dumps(data))
 
-        self.assertEqual(gegevens["toewijzingen"], [])
+        self.assertEqual(len(gegevens["toewijzingen"]), 1)
+        self.assertIsInstance(gegevens["toewijzingen"][0], PercentageToewijzing)
 
     def test_roosterovergang_over_weekend_is_geldig(self):
         data = voorbeeld()
@@ -123,14 +148,15 @@ class TestContract(unittest.TestCase):
         data["toewijzingen"][0]["geldig_tm"] = "2026-10-23"
         data["toewijzingen"].append({
             "userid": "j001",
-            "rooster_id": "R02",
+            "type": "Rooster",
+            "toewijzing_id": "R02",
             "geldig_vanaf": "2026-10-26",
             "geldig_tm": None,
         })
 
         gegevens = laad_contract(json.dumps(data))
 
-        self.assertEqual(len(gegevens["toewijzingen"]), 2)
+        self.assertEqual(len(gegevens["toewijzingen"]), 3)
 
     def test_gat_in_roostertoewijzingen_wordt_doorgelaten(self):
         data = voorbeeld()
@@ -146,14 +172,15 @@ class TestContract(unittest.TestCase):
         data["toewijzingen"][0]["geldig_tm"] = "2026-10-23"
         data["toewijzingen"].append({
             "userid": "j001",
-            "rooster_id": "R02",
+            "type": "Rooster",
+            "toewijzing_id": "R02",
             "geldig_vanaf": "2026-10-27",
             "geldig_tm": None,
         })
 
         gegevens = laad_contract(json.dumps(data))
 
-        self.assertEqual(len(gegevens["toewijzingen"]), 2)
+        self.assertEqual(len(gegevens["toewijzingen"]), 3)
 
     def test_roosteruren_boven_negen_afgekeurd(self):
         data = voorbeeld()
@@ -177,10 +204,7 @@ class TestContract(unittest.TestCase):
 
         gegevens = laad_contract(json.dumps(data))
 
-        self.assertEqual(
-            gegevens["afwezigheid_records"][0]["code"],
-            "X",
-        )
+        self.assertEqual(gegevens["afwezigheid_records"][0]["code"], "X")
 
     def test_afwezigheid_na_einddatum_genegeerd(self):
         data = voorbeeld()

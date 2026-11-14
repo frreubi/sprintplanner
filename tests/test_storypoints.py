@@ -3,14 +3,17 @@ from berekeningen import bereken_storypoints
 
 
 class TestStorypoints(unittest.TestCase):
-    def test_standaardwerkstroom_zonder_percentage(self):
-        with self.assertRaises(ValueError):
-            bereken_storypoints(
-                standaard_werkstroom="ops",
-                netto_uren=40,
-                werkstromen={"dev": 100, "ops": 0, "func": 0},
-                uren_per_storypoint=4,
-            )
+    def test_standaardwerkstroom_mag_volledig_worden_vervangen(self):
+        resultaat = bereken_storypoints(
+            standaard_werkstroom="ops",
+            netto_uren=40,
+            werkstromen={"dev": 100, "ops": 0, "func": 0},
+            uren_per_storypoint=4,
+        )
+        self.assertEqual(
+            resultaat,
+            {"totaal": 10, "dev": 10, "ops": 0, "func": 0},
+        )
 
 
     def test_verdeling_bij_gelijke_resten(self):

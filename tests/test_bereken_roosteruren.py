@@ -25,9 +25,9 @@ class TestBerekenRoosteruren(unittest.TestCase):
         vanaf = date(2026, 10, 19)
 
         self.medewerkers = [
-            Medewerker("j001", "Jan", "van der", "Berg", "dev",{"dev": 100, "ops": 0, "func": 0}),
-            Medewerker("p002", "Petra", "", "Jansen", "ops",{"dev": 0, "ops": 100, "func": 0}),
-            Medewerker("a003", "Ahmed", "", "Bakker", "func",{"dev": 0, "ops": 0, "func": 100}),
+            Medewerker("j001", "Jan", "van der", "Berg", "dev"),
+            Medewerker("p002", "Petra", "", "Jansen", "ops"),
+            Medewerker("a003", "Ahmed", "", "Bakker", "func"),
         ]
 
         self.toewijzingen = [
@@ -70,7 +70,7 @@ class TestBerekenRoosteruren(unittest.TestCase):
     def test_ontbrekend_rooster(self):
         rooster = Rooster("R999", 1, [[8, 8, 8, 8, 4]])
         medewerker = Medewerker(
-            "x004", "Sam", "", "Test", "dev", {"dev": 100, "ops": 0, "func": 0}
+            "x004", "Sam", "", "Test", "dev"
         )
         with self.assertRaisesRegex(ValueError, "Geen roostertoewijzing gevonden"):
             bereken_roosteruren(
@@ -161,9 +161,9 @@ class TestBerekenNettoUrenMedewerkers(unittest.TestCase):
         vanaf = date(2026, 4, 7)
 
         medewerkers = [
-            Medewerker("jansj27", "Jan", "", "Janssen", "dev", {"dev": 60, "ops": 20, "func": 20}),
-            Medewerker("petrp12", "Petra", "", "Peters", "ops", {"dev": 0, "ops": 100, "func": 0}),
-            Medewerker("ahmed01", "Ahmed", "", "Ahmed", "func", {"dev": 0, "ops": 0, "func": 100}),
+            Medewerker("jansj27", "Jan", "", "Janssen", "dev"),
+            Medewerker("petrp12", "Petra", "", "Peters", "ops"),
+            Medewerker("ahmed01", "Ahmed", "", "Ahmed", "func"),
         ]
 
         toewijzingen = [
@@ -197,7 +197,7 @@ class TestBerekenNettoUrenMedewerkers(unittest.TestCase):
 
     def test_agile_overhead(self):
         rooster = Rooster("R001", 1, [[8, 8, 8, 8, 4]])
-        medewerker = Medewerker("j001", "Jan", "", "Berg", "dev", {"dev": 100, "ops": 0, "func": 0})
+        medewerker = Medewerker("j001", "Jan", "", "Berg", "dev")
         toewijzingen = [
             Roostertoewijzing(medewerker, rooster, date(2026, 10, 19))
         ]
