@@ -1,17 +1,13 @@
 import unittest
 from datetime import date
-from sprints import zoek_sprint
+from sprints import Sprint, zoek_sprint
 
 
 class TestZoekSprint(unittest.TestCase):
 
     def setUp(self):
         self.sprints = [
-            {
-                "naam": "2026-44",
-                "begindatum": date(2026, 10, 26),
-                "einddatum": date(2026, 11, 13),
-            }
+            Sprint(1, date(2026, 10, 26), date(2026, 11, 13))
         ]
 
     def test_sprint_gevonden(self):
@@ -27,11 +23,7 @@ class TestZoekSprint(unittest.TestCase):
 
     def test_overlappende_sprints(self):
         overlap = self.sprints + [
-            {
-                "naam": "2026-45",
-                "begindatum": date(2026, 11, 10),
-                "einddatum": date(2026, 11, 20),
-            }
+            Sprint(2, date(2026, 11, 10), date(2026, 11, 20))
         ]
 
         with self.assertRaises(ValueError):

@@ -268,7 +268,7 @@ class SprintInfo:
 
     def vernieuw_sprints(self):
         geselecteerde_sprint = (
-            self.sprints[self.index]["naam"]
+            self.sprints[self.index]["sprintID"]
             if self.sprints and 0 <= self.index < len(self.sprints)
             else None
         )
@@ -302,7 +302,7 @@ class SprintInfo:
             self.index = next(
                 (
                     i for i, sprint in enumerate(sprints)
-                    if sprint["naam"] == geselecteerde_sprint
+                    if sprint["sprintID"] == geselecteerde_sprint
                 ),
                 huidige_index,
             )
@@ -354,7 +354,7 @@ class SprintInfo:
             if waarde > 0
         })
 
-        self.sprint_naam.configure(text=sprint["naam"].upper())
+        self.sprint_naam.configure(text=f"SPRINT {sprint['sprintID']}")
         self.sprint_datums.configure(
             text=(
                 f"{sprint['begindatum']:%d %b} – "

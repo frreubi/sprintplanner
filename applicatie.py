@@ -44,7 +44,7 @@ def verwerk_contract(bericht):
             )
 
         sprintresultaten.append({
-            "naam": sprint.naam,
+            "sprintID": sprint.sprintID,
             "begindatum": sprint.begindatum.isoformat(),
             "einddatum": sprint.einddatum.isoformat(),
             "agile_instellingen": gegevens["agile_instellingen"],

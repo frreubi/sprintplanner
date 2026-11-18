@@ -152,9 +152,9 @@ class TestBerekenNettoUrenPerPeriode(unittest.TestCase):
 class TestBerekenNettoUrenMedewerkers(unittest.TestCase):
     def test_netto_uren_per_medewerker(self):
         agile_instellingen = [
-            {"type": "DagStart", "dagen": ["ma", "di", "do"], "duur": 0.5},
-            {"type": "Refinement", "dagen": ["do"], "duur": 1.5},
-            {"type": "Sprintwissel", "dagen": ["ma"], "duur": 3.0},
+            {"type": "DagStart", "ma": True, "di": True, "wo": False, "do": True, "vr": False, "duur": 0.5},
+            {"type": "Refinement", "ma": False, "di": False, "wo": False, "do": True, "vr": False, "duur": 1.5},
+            {"type": "Sprintwissel", "ma": True, "di": False, "wo": False, "do": False, "vr": False, "duur": 3.0},
         ]    
         r001 = Rooster("R001", 1, [[8, 8, 8, 8, 4]])
         r002 = Rooster("R002", 1, [[8, 8, 8, 8, 0]])
@@ -203,9 +203,9 @@ class TestBerekenNettoUrenMedewerkers(unittest.TestCase):
         ]
 
         instellingen = [
-            {"type": "DagStart", "dagen": ["ma", "di", "do"], "duur": 0.5},
-            {"type": "Refinement", "dagen": ["do"], "duur": 1.5},
-            {"type": "Sprintwissel", "dagen": ["ma"], "duur": 3.0},
+            {"type": "DagStart", "ma": True, "di": True, "wo": False, "do": True, "vr": False, "duur": 0.5},
+            {"type": "Refinement", "ma": False, "di": False, "wo": False, "do": True, "vr": False, "duur": 1.5},
+            {"type": "Sprintwissel", "ma": True, "di": False, "wo": False, "do": False, "vr": False, "duur": 3.0},
         ]
 
         resultaat = bereken_agile_overhead_per_dag(

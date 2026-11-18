@@ -4,3 +4,5 @@ Geautomatiseerde tests uitvoeren vanuit de hoofdmap Sprintplanner:
 De map handmatig bevat tests die aanvullende bestanden of een grafische omgeving nodig hebben.
 test_beveiliging.py verwacht de oude Sprintplanner_demo.ods.
 test_sprintinfo.py opent een venster en moet lokaal handmatig worden uitgevoerd.
+
+De sprintkalender wordt gegenereerd uit instellingen.datum_eerste_sprint en instellingen.standaard_sprintduur. De testfixtures bevatten daarom geen afzonderlijke sprints-lijst meer.

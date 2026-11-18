@@ -169,7 +169,7 @@ def bereken_agile_overhead_per_dag(
         if instelling["type"] == "Sprintwissel":
             if sprintwissel:
                 dag_overhead += instelling["duur"]
-        elif dag in instelling["dagen"]:
+        elif dag in ("ma", "di", "wo", "do", "vr") and instelling[dag]:
             if instelling["type"] == "DagStart" and sprintwissel:
                 continue
             dag_overhead += instelling["duur"]

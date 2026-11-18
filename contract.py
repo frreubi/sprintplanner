@@ -6,7 +6,7 @@ from rooster import Rooster
 from rollen import Rol
 from percentages import Percentageverdeling
 from toewijzingen import Roostertoewijzing, PercentageToewijzing
-from sprints import Sprint
+from sprintkalender import genereer_sprints
 
 
 class ContractValidatieFout(ValueError):
@@ -67,6 +67,10 @@ def _getal(waarde, onderdeel, pad, minimum=None, maximum=None, geheel=False, pos
     return waarde
 
 
+def _standaardwerkstroom(rol_id, doet_sprintwerk):
+    return rol_id if doet_sprintwerk else None
+
+
 def laad_contract(json_tekst):
     try:
         gegevens = json.loads(json_tekst)
@@ -77,11 +81,11 @@ def laad_contract(json_tekst):
         _fout("ONGELDIGE_STRUCTUUR", "contract", "$", "Het contract moet een JSON-object zijn.")
 
     contract = gegevens.get("contract")
-    if not isinstance(contract, dict) or contract.get("naam") != "Sprintplanner" or contract.get("versie") != "3.0":
-        _fout("CONTRACTVERSIE_NIET_ONDERSTEUND", "contract", "$.contract", "Alleen Sprintplanner-contractversie 3.0 wordt ondersteund.")
+    if not isinstance(contract, dict) or contract.get("naam") != "Sprintplanner" or contract.get("versie") != "5.0":
+        _fout("CONTRACTVERSIE_NIET_ONDERSTEUND", "contract", "$.contract", "Alleen Sprintplanner-contractversie 5.0 wordt ondersteund.")
 
     verplicht = (
-        "sprints", "rollen", "medewerkers", "roosters", "percentages",
+        "rollen", "medewerkers", "roosters", "percentages",
         "toewijzingen", "afwezigheden", "agile_instellingen", "instellingen",
     )
     for onderdeel in verplicht:
@@ -93,21 +97,38 @@ def laad_contract(json_tekst):
     instellingen_data = gegevens["instellingen"]
     if not isinstance(instellingen_data, dict):
         _fout("ONGELDIGE_STRUCTUUR", "instellingen", "$.instellingen", "Instellingen moeten een object zijn.")
+
+    standaard_sprintduur = _getal(
+        instellingen_data.get("standaard_sprintduur"),
+        "instellingen",
+        "$.instellingen.standaard_sprintduur",
+        minimum=1,
+        geheel=True,
+    )
+
+    datum_eerste_sprint = _datum(
+        instellingen_data.get("datum_eerste_sprint"),
+        "instellingen",
+        "$.instellingen.datum_eerste_sprint",
+    )
+
+    storypoints_accessman_rapportage = _getal(
+        instellingen_data.get("storypoints_accessman_rapportage"),
+        "instellingen",
+        "$.instellingen.storypoints_accessman_rapportage",
+        positief=True,
+        geheel=True,
+    )
+
     uren_per_storypoint = _getal(
         instellingen_data.get("uren_per_storypoint"), "instellingen",
         "$.instellingen.uren_per_storypoint", positief=True
     )
 
-    sprints = []
-    for i, item in enumerate(gegevens["sprints"]):
-        pad = f"$.sprints[{i}]"
-        if not isinstance(item, dict):
-            _fout("ONGELDIGE_STRUCTUUR", "sprints", pad, "Sprint moet een object zijn.")
-        begin = _datum(item.get("begindatum"), "sprints", f"{pad}.begindatum")
-        eind = _datum(item.get("einddatum"), "sprints", f"{pad}.einddatum")
-        if eind < begin:
-            _fout("ONGELDIGE_PERIODE", "sprints", pad, "Einddatum ligt vóór begindatum.")
-        sprints.append(Sprint(_tekst(item, "naam", "sprints", pad), begin, eind))
+    sprints = genereer_sprints(
+        datum_eerste_sprint,
+        standaard_sprintduur,
+    )
 
     rollen = {}
     for i, item in enumerate(gegevens["rollen"]):
@@ -118,11 +139,15 @@ def laad_contract(json_tekst):
         if rol_id in rollen:
             _fout("DUBBEL_ROL_ID", "rollen", f"{pad}.rol_id", f"Rol-ID {rol_id!r} komt meer dan eenmaal voor.")
         naam = _tekst(item, "naam", "rollen", pad)
-        standaardwerkstroom = item.get("standaardwerkstroom")
-        if standaardwerkstroom is not None:
-            if not isinstance(standaardwerkstroom, str) or not standaardwerkstroom.strip():
-                _fout("ONGELDIGE_WAARDE", "rollen", f"{pad}.standaardwerkstroom", "Standaardwerkstroom moet tekst zijn of null.")
-            standaardwerkstroom = standaardwerkstroom.strip().lower()
+        doet_sprintwerk = item.get("doet_sprintwerk")
+        if not isinstance(doet_sprintwerk, bool):
+            _fout(
+                "ONGELDIGE_WAARDE",
+                "rollen",
+                f"{pad}.doet_sprintwerk",
+                "Doet_sprintwerk moet True of False zijn.",
+            )
+        standaardwerkstroom = _standaardwerkstroom(rol_id, doet_sprintwerk)
         begin = _datum(item.get("geldig_vanaf"), "rollen", f"{pad}.geldig_vanaf")
         eind = _datum(item.get("geldig_tm"), "rollen", f"{pad}.geldig_tm", verplicht=False)
         if eind is not None and eind < begin:
@@ -269,19 +294,36 @@ def laad_contract(json_tekst):
 
     agile_instellingen = []
     toegestane_types = {"DagStart", "Refinement", "Sprintwissel"}
-    toegestane_dagen = {"ma", "di", "wo", "do", "vr"}
+    dagen = ("ma", "di", "wo", "do", "vr")
+
     for i, item in enumerate(gegevens["agile_instellingen"]):
         pad = f"$.agile_instellingen[{i}]"
         if not isinstance(item, dict):
             _fout("ONGELDIGE_STRUCTUUR", "agile_instellingen", pad, "Agile-instelling moet een object zijn.")
+
         type_ = _tekst(item, "type", "agile_instellingen", pad)
         if type_ not in toegestane_types:
             _fout("ONGELDIG_AGILE_TYPE", "agile_instellingen", f"{pad}.type", f"Onbekend agile-type: {type_}.")
-        dagen = item.get("dagen")
-        if not isinstance(dagen, list) or any(dag not in toegestane_dagen for dag in dagen):
-            _fout("ONGELDIGE_AGILE_DAGEN", "agile_instellingen", f"{pad}.dagen", "Dagen moeten ma, di, wo, do of vr zijn.")
-        duur = _getal(item.get("duur"), "agile_instellingen", f"{pad}.duur", positief=True)
-        agile_instellingen.append({"type": type_, "dagen": dagen, "duur": duur})
+
+        instelling = {"type": type_}
+        for dag in dagen:
+            waarde = item.get(dag)
+            if type(waarde) is not bool:
+                _fout(
+                    "ONGELDIGE_AGILE_DAG",
+                    "agile_instellingen",
+                    f"{pad}.{dag}",
+                    f"Dag {dag} moet True of False zijn.",
+                )
+            instelling[dag] = waarde
+
+        instelling["duur"] = _getal(
+            item.get("duur"),
+            "agile_instellingen",
+            f"{pad}.duur",
+            positief=True,
+        )
+        agile_instellingen.append(instelling)
 
     return {
         "sprints": sprints,
@@ -293,5 +335,8 @@ def laad_contract(json_tekst):
         "afwezigheden": afwezigheden,
         "afwezigheid_records": afwezigheid_records,
         "agile_instellingen": agile_instellingen,
+        "standaard_sprintduur": standaard_sprintduur,
+        "datum_eerste_sprint": datum_eerste_sprint,
         "uren_per_storypoint": uren_per_storypoint,
+        "storypoints_accessman_rapportage": storypoints_accessman_rapportage,
     }

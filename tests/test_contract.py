@@ -13,16 +13,11 @@ from sprints import Sprint, zoek_sprint
 
 def voorbeeld():
     return {
-        "contract": {"naam": "Sprintplanner", "versie": "3.0"},
-        "sprints": [{
-            "naam": "Sprint 2026-Week 45",
-            "begindatum": "2026-11-02",
-            "einddatum": "2026-11-06",
-        }],
+        "contract": {"naam": "Sprintplanner", "versie": "5.0"},
         "rollen": [{
             "rol_id": "dev",
             "naam": "Developer",
-            "standaardwerkstroom": "dev",
+            "doet_sprintwerk": True,
             "geldig_vanaf": "2025-01-01",
             "geldig_tm": None,
         }],
@@ -66,10 +61,17 @@ def voorbeeld():
         }],
         "agile_instellingen": [{
             "type": "DagStart",
-            "dagen": ["ma", "di", "do"],
+            "ma": True,
+            "di": True,
+            "wo": False,
+            "do": True,
+            "vr": False,
             "duur": 0.5,
         }],
         "instellingen": {
+            "datum_eerste_sprint": "2026-11-02",
+            "standaard_sprintduur": 1,
+            "storypoints_accessman_rapportage": 1,
             "uren_per_storypoint": 6.0,
         },
     }
@@ -81,7 +83,11 @@ class TestContract(unittest.TestCase):
         gegevens = laad_contract(json.dumps(voorbeeld()))
 
         self.assertIsInstance(gegevens["sprints"][0], Sprint)
+        self.assertEqual(gegevens["sprints"][0].sprintID, 1)
+        self.assertEqual(gegevens["sprints"][0].begindatum, date(2026, 11, 2))
+        self.assertEqual(gegevens["sprints"][0].einddatum, date(2026, 11, 8))
         self.assertIsInstance(gegevens["rollen"]["dev"], Rol)
+        self.assertEqual(gegevens["rollen"]["dev"].standaardwerkstroom, "dev")
         self.assertIsInstance(gegevens["medewerkers"][0], Medewerker)
         self.assertIsInstance(gegevens["roosters"]["R01"], Rooster)
         self.assertIsInstance(gegevens["percentages"]["P001"], Percentageverdeling)
@@ -92,6 +98,62 @@ class TestContract(unittest.TestCase):
             "4V",
         )
         self.assertEqual(gegevens["uren_per_storypoint"], 6.0)
+        self.assertEqual(
+            gegevens["agile_instellingen"],
+            [{
+                "type": "DagStart",
+                "ma": True,
+                "di": True,
+                "wo": False,
+                "do": True,
+                "vr": False,
+                "duur": 0.5,
+            }],
+        )
+
+
+    def test_rol_zonder_sprintwerk_heeft_geen_standaardwerkstroom(self):
+        data = voorbeeld()
+        data["rollen"][0]["doet_sprintwerk"] = False
+
+        gegevens = laad_contract(json.dumps(data))
+
+        self.assertIsNone(gegevens["rollen"]["dev"].standaardwerkstroom)
+
+    def test_doet_sprintwerk_moet_een_boolean_zijn(self):
+        data = voorbeeld()
+        data["rollen"][0]["doet_sprintwerk"] = "ja"
+
+        with self.assertRaises(ContractValidatieFout) as context:
+            laad_contract(json.dumps(data))
+
+        self.assertEqual(context.exception.foutcode, "ONGELDIGE_WAARDE")
+
+    def test_agile_dagen_moeten_booleans_zijn(self):
+        data = voorbeeld()
+        data["agile_instellingen"][0]["wo"] = "Nee"
+
+        with self.assertRaises(ContractValidatieFout) as context:
+            laad_contract(json.dumps(data))
+
+        self.assertEqual(context.exception.foutcode, "ONGELDIGE_AGILE_DAG")
+        self.assertEqual(
+            context.exception.gegevenspad,
+            "$.agile_instellingen[0].wo",
+        )
+
+    def test_agile_dagveld_is_verplicht(self):
+        data = voorbeeld()
+        del data["agile_instellingen"][0]["vr"]
+
+        with self.assertRaises(ContractValidatieFout) as context:
+            laad_contract(json.dumps(data))
+
+        self.assertEqual(context.exception.foutcode, "ONGELDIGE_AGILE_DAG")
+        self.assertEqual(
+            context.exception.gegevenspad,
+            "$.agile_instellingen[0].vr",
+        )
 
     def test_sprintobject_werkt_met_zoek_sprint(self):
         gegevens = laad_contract(json.dumps(voorbeeld()))
@@ -136,8 +198,8 @@ class TestContract(unittest.TestCase):
 
     def test_roosterovergang_over_weekend_is_geldig(self):
         data = voorbeeld()
-        data["sprints"][0]["begindatum"] = "2026-10-19"
-        data["sprints"][0]["einddatum"] = "2026-10-30"
+        data["instellingen"]["datum_eerste_sprint"] = "2026-10-19"
+        data["instellingen"]["standaard_sprintduur"] = 2
 
         data["roosters"].append({
             "rooster_id": "R02",
@@ -160,8 +222,8 @@ class TestContract(unittest.TestCase):
 
     def test_gat_in_roostertoewijzingen_wordt_doorgelaten(self):
         data = voorbeeld()
-        data["sprints"][0]["begindatum"] = "2026-10-19"
-        data["sprints"][0]["einddatum"] = "2026-10-30"
+        data["instellingen"]["datum_eerste_sprint"] = "2026-10-19"
+        data["instellingen"]["standaard_sprintduur"] = 2
 
         data["roosters"].append({
             "rooster_id": "R02",

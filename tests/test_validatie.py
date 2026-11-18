@@ -44,9 +44,7 @@ class TestValideerSprintgegevens(unittest.TestCase):
 
     def test_afwezigheid_op_feestdag_wordt_genegeerd(self):
         data = voorbeeld()
-        data["sprints"][0]["begindatum"] = "2026-12-25"
-        data["sprints"][0]["einddatum"] = "2026-12-25"
-        data["toewijzingen"] = []
+        data["instellingen"]["datum_eerste_sprint"] = "2026-12-25"
         data["afwezigheden"] = [{
             "userid": "j001",
             "datum": "2026-12-25",

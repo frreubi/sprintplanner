@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 from datetime import date
 
-
 @dataclass(frozen=True)
 class Sprint:
-    naam: str
+    sprintID: int
     begindatum: date
     einddatum: date
 
