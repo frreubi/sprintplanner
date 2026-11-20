@@ -4,10 +4,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import unittest
 from datetime import date
-from medewerker import Medewerker
-from rooster import Rooster
-import rooster
-from toewijzingen import Roostertoewijzing
+from Domein.medewerker import Medewerker
+from Domein.rooster import Rooster
+import Domein.rooster
+from Domein.toewijzingen import Roostertoewijzing
 from berekeningen import (
     bereken_roosteruren,
     bereken_afwezigheidsuren,

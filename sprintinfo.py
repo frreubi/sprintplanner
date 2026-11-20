@@ -20,8 +20,9 @@ PAARS_HOVER = "#9569C5"
 
 class SprintInfo:
 
-    def __init__(self, sprints, huidige_index):
+    def __init__(self, sprints, huidige_index, sprintnaamgeving="Volgnummer"):
         self.sprints = sprints
+        self.sprintnaamgeving = sprintnaamgeving
         self.huidige_index = huidige_index
         self.index = huidige_index
         self.window = ctk.CTk()
@@ -37,71 +38,57 @@ class SprintInfo:
         self.window.configure(fg_color=ACHTERGROND)
 
         self.window.grid_columnconfigure(0, weight=1)
-        self.window.grid_rowconfigure(3, weight=1)
+        self.window.grid_rowconfigure(1, weight=1)
 
-        self.build_header()
         self.build_sprint_header()
-        self.build_view_selector()
         self.build_table()
         self.build_navigation()
 
         self.toon_sprint()
 
-    def build_header(self):
-        frame = ctk.CTkFrame(self.window, fg_color="transparent")
-        frame.grid(row=0, column=0, sticky="ew", padx=20, pady=15)
-
-        ctk.CTkLabel(
-            frame,
-            text="📊  SprintInfo",
-            font=("Segoe UI", 19, "bold"),
-            text_color=TEKST,
-        ).pack(side="left")
-
-        self.vernieuw_knop = ctk.CTkButton(
-            frame,
-            text="↻",
-            width=38,
-            height=36,
-            corner_radius=10,
-            fg_color=PAARS,
-            hover_color=PAARS_HOVER,
-            command=self.vernieuw_sprints,
-        )
-        self.vernieuw_knop.pack(side="right")
-
     def build_sprint_header(self):
         frame = ctk.CTkFrame(self.window, fg_color="transparent")
-        frame.grid(row=1, column=0, sticky="ew", padx=20, pady=(10, 15))
+        frame.grid(row=0, column=0, sticky="ew", padx=20, pady=(15, 10))
+        frame.grid_columnconfigure(0, weight=1)
+
+        titel_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        titel_frame.grid(row=0, column=0, rowspan=3, sticky="nw")
 
         self.sprint_naam = ctk.CTkLabel(
-            frame,
+            titel_frame,
             text="",
-            text_color="#B99ADC",
-            font=("Segoe UI", 11, "bold"),
+            text_color=TEKST,
+            font=("Segoe UI", 25, "bold"),
         )
         self.sprint_naam.pack(anchor="w")
 
         self.sprint_datums = ctk.CTkLabel(
-            frame,
+            titel_frame,
             text="",
             text_color=TEKST,
             font=("Segoe UI", 23, "bold"),
         )
         self.sprint_datums.pack(anchor="w", pady=(3, 0))
 
-    def build_view_selector(self):
-        frame = ctk.CTkFrame(self.window, fg_color="transparent")
-        frame.grid(row=2, column=0, sticky="ew", padx=20, pady=10)
-
-        ctk.CTkLabel(
+        self.sprintnaamgeving_knop = ctk.CTkSegmentedButton(
             frame,
-            text="Weergave",
-            text_color=GEDIMD,
-        ).pack(side="left")
+            values=["Weeknummer", "Volgnummer"],
+            selected_color=PAARS,
+            selected_hover_color=PAARS_HOVER,
+            unselected_color=PANEEL,
+            unselected_hover_color=RIJ,
+            text_color=TEKST,
+            corner_radius=10,
+            command=self.wijzig_sprintnaamgeving,
+        )
+        self.sprintnaamgeving_knop.set(self.sprintnaamgeving)
+        self.sprintnaamgeving_knop.grid(row=0, column=1, sticky="e", pady=(0, 7))
+
+        weergave_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        weergave_frame.grid(row=2, column=1, sticky="e", pady=(7, 0))
 
         self.weergave = ctk.CTkSegmentedButton(
-            frame,
+            weergave_frame,
             values=["Storypoints", "Uren"],
             selected_color=PAARS,
             selected_hover_color=PAARS_HOVER,
@@ -114,6 +101,12 @@ class SprintInfo:
         self.weergave.set("Storypoints")
         self.weergave.pack(side="right")
 
+        ctk.CTkLabel(
+            weergave_frame,
+            text="Weergave",
+            text_color=GEDIMD,
+        ).pack(side="right", padx=(0, 8))
+
     def build_table(self):
         frame = ctk.CTkFrame(
             self.window,
@@ -121,19 +114,34 @@ class SprintInfo:
             corner_radius=12,
         )
         frame.grid(
-            row=3,
+            row=1,
             column=0,
             sticky="nsew",
             padx=20,
             pady=10,
         )
 
+        kop_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        kop_frame.pack(fill="x", padx=15, pady=10)
+
         ctk.CTkLabel(
-            frame,
+            kop_frame,
             text="Capaciteit per medewerker",
             font=("Segoe UI", 14, "bold"),
             text_color=TEKST,
-        ).pack(anchor="w", padx=15, pady=12)
+        ).pack(side="left")
+
+        self.vernieuw_knop = ctk.CTkButton(
+            kop_frame,
+            text="↻",
+            width=34,
+            height=30,
+            corner_radius=8,
+            fg_color=PAARS,
+            hover_color=PAARS_HOVER,
+            command=self.vernieuw_sprints,
+        )
+        self.vernieuw_knop.pack(side="right")
 
         self.fouten_label = ctk.CTkLabel(
             frame,
@@ -228,7 +236,7 @@ class SprintInfo:
 
     def build_navigation(self):
         frame = ctk.CTkFrame(self.window, fg_color="transparent")
-        frame.grid(row=4, column=0, sticky="ew", padx=20, pady=15)
+        frame.grid(row=2, column=0, sticky="ew", padx=20, pady=15)
 
         self.vorige_knop = ctk.CTkButton(
             frame,
@@ -319,6 +327,9 @@ class SprintInfo:
         finally:
             self.vernieuw_knop.configure(state="normal")
 
+    def wijzig_sprintnaamgeving(self, _waarde=None):
+        self.toon_sprint()
+
     def wijzig_sprint(self, stap):
         if stap == 0:
             self.index = self.huidige_index
@@ -354,7 +365,11 @@ class SprintInfo:
             if waarde > 0
         })
 
-        self.sprint_naam.configure(text=f"SPRINT {sprint['sprintID']}")
+        if self.sprintnaamgeving_knop.get() == "Weeknummer":
+            sprintnummer = sprint["begindatum"].isocalendar().week
+        else:
+            sprintnummer = sprint["sprintID"]
+        self.sprint_naam.configure(text=f"Sprint {sprintnummer}")
         self.sprint_datums.configure(
             text=(
                 f"{sprint['begindatum']:%d %b} – "
@@ -443,4 +458,5 @@ if __name__ == "__main__":
         len(sprints) - 1,
     )
 
-    SprintInfo(sprints, huidige_index).window.mainloop()
+    sprintnaamgeving = sys.argv[2] if len(sys.argv) > 2 else "Volgnummer"
+    SprintInfo(sprints, huidige_index, sprintnaamgeving).window.mainloop()

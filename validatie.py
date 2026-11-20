@@ -2,7 +2,14 @@ import re
 from datetime import timedelta
 
 from berekeningen import bereken_feestdagen
-from toewijzingen import Roostertoewijzing, PercentageToewijzing
+from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from Domein.toewijzingen import Roostertoewijzing, PercentageToewijzing
 
 
 PATROON_AFWEZIGHEIDSCODE = re.compile(r"^(?:[1-9][0-9]*)?[VBCZ]$")

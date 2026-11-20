@@ -2,11 +2,11 @@ import unittest
 from datetime import date
 
 from berekeningen import bereken_sprintresultaten
-from medewerker import Medewerker
-from percentages import Percentageverdeling
-from rollen import Rol
-from rooster import Rooster
-from toewijzingen import Roostertoewijzing, PercentageToewijzing
+from Domein.medewerker import Medewerker
+from Domein.percentages import Percentageverdeling
+from Domein.rollen import Rol
+from Domein.rooster import Rooster
+from Domein.toewijzingen import Roostertoewijzing, PercentageToewijzing
 
 
 class TestSprintresultaten(unittest.TestCase):

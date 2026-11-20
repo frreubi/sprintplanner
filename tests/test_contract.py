@@ -3,12 +3,12 @@ import unittest
 from datetime import date
 
 from contract import laad_contract, ContractValidatieFout
-from medewerker import Medewerker
-from rooster import Rooster
-from rollen import Rol
-from percentages import Percentageverdeling
-from toewijzingen import Roostertoewijzing, PercentageToewijzing
-from sprints import Sprint, zoek_sprint
+from Domein.medewerker import Medewerker
+from Domein.rooster import Rooster
+from Domein.rollen import Rol
+from Domein.percentages import Percentageverdeling
+from Domein.toewijzingen import Roostertoewijzing, PercentageToewijzing
+from Domein.sprints import Sprint, zoek_sprint
 
 
 def voorbeeld():

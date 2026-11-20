@@ -5,8 +5,8 @@ from datetime import date
 from contract import laad_contract
 from tests.test_contract import voorbeeld
 from validatie import valideer_sprintgegevens
-from percentages import Percentageverdeling
-from toewijzingen import PercentageToewijzing
+from Domein.percentages import Percentageverdeling
+from Domein.toewijzingen import PercentageToewijzing
 
 
 class TestValideerSprintgegevens(unittest.TestCase):

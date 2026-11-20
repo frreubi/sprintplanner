@@ -2,6 +2,11 @@ import json
 import os
 import subprocess
 from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from berekeningen import bereken_sprintresultaten
 from contract import laad_contract
@@ -55,7 +60,7 @@ def verwerk_contract(bericht):
     return sprintresultaten
 
 
-def start(bericht):
+def start(bericht, sprintnaamgeving="Volgnummer"):
     sprintresultaten = verwerk_contract(bericht)
 
     jsonbestand = PROJECTMAP / "sprints.json"
@@ -75,6 +80,7 @@ def start(bericht):
                 str(PYTHON),
                 str(PROJECTMAP / "sprintinfo.py"),
                 str(jsonbestand),
+                sprintnaamgeving,
             ],
             stdout=log,
             stderr=log,
